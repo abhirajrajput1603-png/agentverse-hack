@@ -1,6 +1,6 @@
 # Portfolio X-Ray: Build Plan for the Coding Agent
 
-Read this whole file before writing any code. Then work through the steps **one at a time, in order**. After each step: run its tests, show me the result, and **stop and wait for my confirmation** before starting the next step.
+Read this whole file before writing any code. Then work through the steps **one at a time, in order**, following the workflow in section 9: **explain first, agree the logic with me, then build.** Never write code for a step until I have approved your explanation of it.
 
 Also read: `AGENT_CRITERIA_AND_SPEC.md`, `data/README.md`, `agentverse/START-HERE.md`.
 
@@ -187,7 +187,26 @@ Screenshot OCR, bonds/options/crypto risk models, factor regressions beyond mark
 
 ## 9. How to work with me
 
-- One step at a time. Show tests passing and a short output sample, then wait.
-- Commit after each step with a clear message.
+Every step has two phases. Do not skip or merge them.
+
+**Phase A: Explain (no code yet)**
+1. **Goal:** what this step does and why the product needs it, in plain English.
+2. **Logic:** the method step by step, including every formula written out, with a small worked example using real numbers from our data.
+3. **Design:** the files and functions you will create, their inputs and outputs, and the Evidence objects they return.
+4. **Edge cases:** missing data, funds without constituents, cash, weights not summing to 1, short histories, and how each is handled.
+5. **Tests:** the exact tests you will write and the expected values.
+6. **Open questions:** any decision you need from me, with your recommended option.
+
+Then **stop and wait**. I may question or change the logic. Revise and re-explain until I say "build it".
+
+**Phase B: Build**
+1. Implement exactly what was agreed. If you find you need to deviate, stop and explain why first.
+2. Run the tests and show the results.
+3. Show a short real output sample.
+4. Summarise in 3 lines what was built and anything that differs from the plan.
+5. Commit with a clear message, then **stop and wait** before explaining the next step.
+
+General:
+- Keep explanations clear and concise; assume I know finance well but explain the code structure.
 - If a step needs data we don't have, say so instead of inventing it.
 - Keep functions small, documented, one module per concern.
