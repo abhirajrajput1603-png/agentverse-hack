@@ -1,0 +1,6 @@
+{
+  "default_max_single_stock_lookthrough_weight": 0.20,
+  "default_max_top_3_lookthrough_weight": 0.50,
+  "default_max_historical_1d_var_95": -0.035,
+  "circuit_breaker_enabled": true
+}

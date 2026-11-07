@@ -5,3 +5,5 @@ __pycache__/
 finance-results/
 .env
 .env.*
+logs/
+*.jsonl
