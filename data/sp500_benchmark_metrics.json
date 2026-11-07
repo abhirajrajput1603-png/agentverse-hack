@@ -1,0 +1,47 @@
+{
+  "benchmark_name": "S&P 500 (SPDR S&P 500 ETF Trust - SPY)",
+  "benchmark_type": "Institutional Global Equity Baseline",
+  "as_of_date": "2024-Q3",
+  "source": "State Street Global Advisors & Official Exchange Data",
+  "concentration_baseline": {
+    "top_10_holdings_total_weight": 0.3424,
+    "top_single_stock_max_weight": 0.0712,
+    "top_constituents": {
+      "MSFT": 0.0712,
+      "AAPL": 0.0685,
+      "NVDA": 0.0648,
+      "AMZN": 0.0362,
+      "META": 0.0251,
+      "GOOGL": 0.0212,
+      "BRK.B": 0.0175,
+      "GOOG": 0.0172,
+      "AVGO": 0.0168,
+      "JPM": 0.0135
+    },
+    "interpretation_guide": "Use to compute Active Concentration Tilt: Active Tilt = User True Look-through Weight - S&P 500 Weight."
+  },
+  "historical_shock_drawdowns": {
+    "august_2024_tech_unwind": {
+      "peak_date": "2024-07-16",
+      "peak_price_usd": 564.99,
+      "trough_date": "2024-08-05",
+      "trough_price_usd": 517.38,
+      "max_drawdown_pct": -8.43,
+      "interpretation": "Broad market benchmark fell -8.43%. A portfolio with heavy tech/semi overlap (e.g. QQQ + SMH) fell -18.2%, demonstrating beta > 2.0."
+    },
+    "march_2023_svb_liquidity_shock": {
+      "peak_date": "2023-02-21",
+      "peak_price_usd": 399.09,
+      "trough_date": "2023-03-13",
+      "trough_price_usd": 385.36,
+      "max_drawdown_pct": -3.44,
+      "interpretation": "Benchmark fell -3.44% during regional banking distress."
+    }
+  },
+  "risk_metrics": {
+    "annualized_volatility_approx": 0.145,
+    "daily_volatility_approx": 0.0091,
+    "historical_1d_var_95_pct": -1.42,
+    "interpretation": "On a typical trading day, the S&P 500 has a 95% confidence 1-day downside bound of -1.42%. A user portfolio with 95% VaR of -3.9% is taking 2.75x market risk."
+  }
+}

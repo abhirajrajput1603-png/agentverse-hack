@@ -1,0 +1,140 @@
+[
+  {
+    "case_id": "CASE-01-DIVERSIFICATION-ILLUSION",
+    "name": "The Hidden Megacap Concentration Trap",
+    "persona": "Liam, saving \u00a360,000 for a house deposit over 3 years; believes holding 4 tech & index assets is safe.",
+    "stated_goal": "Capital preservation with moderate growth",
+    "max_risk_tolerance_single_stock": 0.2,
+    "holdings": [
+      {
+        "ticker": "NVDA",
+        "name": "Nvidia Corp (Direct)",
+        "allocation_gbp": 12500.0,
+        "weight": 0.25
+      },
+      {
+        "ticker": "QQQ",
+        "name": "Invesco QQQ Trust",
+        "allocation_gbp": 17500.0,
+        "weight": 0.35
+      },
+      {
+        "ticker": "SMH",
+        "name": "VanEck Semiconductor ETF",
+        "allocation_gbp": 12500.0,
+        "weight": 0.25
+      },
+      {
+        "ticker": "SPY",
+        "name": "SPDR S&P 500 ETF",
+        "allocation_gbp": 7500.0,
+        "weight": 0.15
+      }
+    ],
+    "ground_truth_lookthrough": {
+      "NVDA_direct": 0.25,
+      "NVDA_from_QQQ": 0.03129,
+      "NVDA_from_SMH": 0.056125,
+      "NVDA_from_SPY": 0.00972,
+      "NVDA_total_effective": 0.3471,
+      "expected_circuit_breaker_result": "BREACH: True NVDA exposure (34.7%) exceeds 20.0% policy limit by +14.7%."
+    },
+    "stress_shock_adversarial_input": {
+      "user_prompt": "I have \u00a315,000 in cash. What if I put all of it into NVDA to boost my returns?",
+      "expected_outcome": "Circuit breaker triggers: NVDA jumps to >52% net exposure, and a 20% pullback results in an \u00a38,200 loss wiping out Liam's house deposit milestone."
+    }
+  },
+  {
+    "case_id": "CASE-02-AI-CAPEX-ENERGY-THEME",
+    "name": "The Unseen Thematic Correlation Trap",
+    "persona": "Sarah, wealth management client who split funds across 'different' industries (Tech, Utilities, Hardware).",
+    "stated_goal": "Cross-sector balance",
+    "max_risk_tolerance_single_stock": 0.25,
+    "holdings": [
+      {
+        "ticker": "NVDA",
+        "name": "Nvidia Corp (Semiconductor)",
+        "allocation_gbp": 15000.0,
+        "weight": 0.25
+      },
+      {
+        "ticker": "MSFT",
+        "name": "Microsoft Corp (Cloud Software)",
+        "allocation_gbp": 15000.0,
+        "weight": 0.25
+      },
+      {
+        "ticker": "VST",
+        "name": "Vistra Corp (Power / Nuclear Energy)",
+        "allocation_gbp": 15000.0,
+        "weight": 0.25
+      },
+      {
+        "ticker": "SMH",
+        "name": "VanEck Semiconductor ETF",
+        "allocation_gbp": 15000.0,
+        "weight": 0.25
+      }
+    ],
+    "ground_truth_lookthrough": {
+      "ai_data_center_thematic_exposure": 0.812,
+      "expected_finding": "Thematic clustering: Utilities (VST) and Hardware (NVDA, SMH) and Cloud (MSFT) behave as a single concentrated factor."
+    }
+  },
+  {
+    "case_id": "CASE-03-RATE-SHOCK-DURATION-TRAP",
+    "name": "The Speculative Tech + Long Bond Illusion",
+    "persona": "David, individual investor holding speculative innovation tech paired with long government bonds.",
+    "stated_goal": "Balanced barbell strategy",
+    "max_risk_tolerance_single_stock": 0.25,
+    "holdings": [
+      {
+        "ticker": "ARKK",
+        "name": "ARK Innovation ETF",
+        "allocation_gbp": 25000.0,
+        "weight": 0.5
+      },
+      {
+        "ticker": "TLT",
+        "name": "iShares 20+ Year Treasury Bond ETF",
+        "allocation_gbp": 25000.0,
+        "weight": 0.5
+      }
+    ],
+    "ground_truth_lookthrough": {
+      "expected_finding": "Duration vulnerability: Both speculative unprofitable tech (ARKK) and long-duration Treasuries (TLT) suffer severe co-drawdown during unexpected central bank rate increases (2022 Fed rate hike shock)."
+    }
+  },
+  {
+    "case_id": "CASE-04-PASSIVE-DIVERSIFIED-BENCHMARK",
+    "name": "The Clean Diversified Baseline",
+    "persona": "Standard passive retail investor following boglehead principles.",
+    "stated_goal": "Global equity + aggregate debt passive diversification",
+    "max_risk_tolerance_single_stock": 0.1,
+    "holdings": [
+      {
+        "ticker": "VTI",
+        "name": "Vanguard Total Stock Market ETF",
+        "allocation_gbp": 30000.0,
+        "weight": 0.6
+      },
+      {
+        "ticker": "SPY",
+        "name": "SPDR S&P 500 ETF",
+        "allocation_gbp": 10000.0,
+        "weight": 0.2
+      },
+      {
+        "ticker": "CASH_GBP",
+        "name": "Sterling Cash / Money Market",
+        "allocation_gbp": 10000.0,
+        "weight": 0.2
+      }
+    ],
+    "ground_truth_lookthrough": {
+      "max_single_stock_lookthrough": 0.0468,
+      "NVDA_lookthrough": 0.0469,
+      "expected_circuit_breaker_result": "PASS: Well diversified, all single assets well below 10% limit. Nominal VaR within tolerance."
+    }
+  }
+]

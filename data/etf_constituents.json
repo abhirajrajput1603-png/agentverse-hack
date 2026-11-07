@@ -1,0 +1,103 @@
+{
+  "QQQ": {
+    "fund_name": "Invesco QQQ Trust (Nasdaq-100)",
+    "source": "Invesco Official Fund Disclosures & SEC N-PORT",
+    "as_of_date": "2024-Q3",
+    "holdings": {
+      "NVDA": 0.0894,
+      "AAPL": 0.0868,
+      "MSFT": 0.0812,
+      "AMZN": 0.0528,
+      "META": 0.0506,
+      "AVGO": 0.0478,
+      "GOOGL": 0.0284,
+      "GOOG": 0.0272,
+      "TSLA": 0.0261,
+      "COST": 0.0255,
+      "AMD": 0.0185,
+      "NFLX": 0.0178,
+      "ADBE": 0.0152,
+      "QCOM": 0.0148,
+      "OTHER_CONSTITUENTS": 0.438
+    }
+  },
+  "SPY": {
+    "fund_name": "SPDR S&P 500 ETF Trust",
+    "source": "State Street Global Advisors & SEC N-PORT",
+    "as_of_date": "2024-Q3",
+    "holdings": {
+      "MSFT": 0.0712,
+      "AAPL": 0.0685,
+      "NVDA": 0.0648,
+      "AMZN": 0.0362,
+      "META": 0.0251,
+      "GOOGL": 0.0212,
+      "BRK.B": 0.0175,
+      "GOOG": 0.0172,
+      "AVGO": 0.0168,
+      "JPM": 0.0135,
+      "TSLA": 0.0132,
+      "LLY": 0.0128,
+      "V": 0.011,
+      "UNH": 0.0105,
+      "OTHER_CONSTITUENTS": 0.6105
+    }
+  },
+  "SMH": {
+    "fund_name": "VanEck Semiconductor ETF",
+    "source": "VanEck Fund Disclosures",
+    "as_of_date": "2024-Q3",
+    "holdings": {
+      "NVDA": 0.2245,
+      "TSM": 0.131,
+      "AVGO": 0.0785,
+      "ASML": 0.056,
+      "QCOM": 0.0452,
+      "AMAT": 0.0435,
+      "TXN": 0.039,
+      "MU": 0.0365,
+      "LRCX": 0.0345,
+      "ADI": 0.032,
+      "INTC": 0.028,
+      "AMD": 0.0275,
+      "ARM": 0.025,
+      "KLAC": 0.0245,
+      "OTHER_CONSTITUENTS": 0.1783
+    }
+  },
+  "VTI": {
+    "fund_name": "Vanguard Total Stock Market ETF",
+    "source": "Vanguard Group Disclosures",
+    "as_of_date": "2024-Q3",
+    "holdings": {
+      "MSFT": 0.0618,
+      "AAPL": 0.0592,
+      "NVDA": 0.0565,
+      "AMZN": 0.0315,
+      "META": 0.0218,
+      "GOOGL": 0.0184,
+      "BRK.B": 0.0152,
+      "AVGO": 0.0146,
+      "JPM": 0.0118,
+      "TSLA": 0.0115,
+      "OTHER_CONSTITUENTS": 0.6977
+    }
+  },
+  "ARKK": {
+    "fund_name": "ARK Innovation ETF",
+    "source": "ARK Invest Daily Disclosures",
+    "as_of_date": "2024-Q3",
+    "holdings": {
+      "TSLA": 0.112,
+      "ROKU": 0.085,
+      "COIN": 0.0815,
+      "PATH": 0.068,
+      "SQ": 0.062,
+      "CRSP": 0.0495,
+      "HOOD": 0.046,
+      "SHOP": 0.042,
+      "DKNG": 0.039,
+      "OTHER_CONSTITUENTS": 0.415
+    }
+  }
+}
