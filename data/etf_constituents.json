@@ -18,8 +18,9 @@
       "NFLX": 0.0178,
       "ADBE": 0.0152,
       "QCOM": 0.0148,
-      "OTHER_CONSTITUENTS": 0.438
-    }
+      "OTHER_CONSTITUENTS": 0.4179
+    },
+    "normalisation_note": "OTHER_CONSTITUENTS set to 1 minus named weights so the fund sums to exactly 1.0"
   },
   "SPY": {
     "fund_name": "SPDR S&P 500 ETF Trust",
@@ -32,7 +33,7 @@
       "AMZN": 0.0362,
       "META": 0.0251,
       "GOOGL": 0.0212,
-      "BRK.B": 0.0175,
+      "BRK-B": 0.0175,
       "GOOG": 0.0172,
       "AVGO": 0.0168,
       "JPM": 0.0135,
@@ -40,8 +41,9 @@
       "LLY": 0.0128,
       "V": 0.011,
       "UNH": 0.0105,
-      "OTHER_CONSTITUENTS": 0.6105
-    }
+      "OTHER_CONSTITUENTS": 0.6005
+    },
+    "normalisation_note": "OTHER_CONSTITUENTS set to 1 minus named weights so the fund sums to exactly 1.0"
   },
   "SMH": {
     "fund_name": "VanEck Semiconductor ETF",
@@ -62,8 +64,9 @@
       "AMD": 0.0275,
       "ARM": 0.025,
       "KLAC": 0.0245,
-      "OTHER_CONSTITUENTS": 0.1783
-    }
+      "OTHER_CONSTITUENTS": 0.1743
+    },
+    "normalisation_note": "OTHER_CONSTITUENTS set to 1 minus named weights so the fund sums to exactly 1.0"
   },
   "VTI": {
     "fund_name": "Vanguard Total Stock Market ETF",
@@ -76,12 +79,13 @@
       "AMZN": 0.0315,
       "META": 0.0218,
       "GOOGL": 0.0184,
-      "BRK.B": 0.0152,
+      "BRK-B": 0.0152,
       "AVGO": 0.0146,
       "JPM": 0.0118,
       "TSLA": 0.0115,
       "OTHER_CONSTITUENTS": 0.6977
-    }
+    },
+    "normalisation_note": "OTHER_CONSTITUENTS set to 1 minus named weights so the fund sums to exactly 1.0"
   },
   "ARKK": {
     "fund_name": "ARK Innovation ETF",
@@ -98,6 +102,7 @@
       "SHOP": 0.042,
       "DKNG": 0.039,
       "OTHER_CONSTITUENTS": 0.415
-    }
+    },
+    "normalisation_note": "OTHER_CONSTITUENTS set to 1 minus named weights so the fund sums to exactly 1.0"
   }
 }

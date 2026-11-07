@@ -37,7 +37,11 @@
       "NVDA_from_SMH": 0.056125,
       "NVDA_from_SPY": 0.00972,
       "NVDA_total_effective": 0.3471,
-      "expected_circuit_breaker_result": "BREACH: True NVDA exposure (34.7%) exceeds 20.0% policy limit by +14.7%."
+      "expected_circuit_breaker_result": "BREACH: True NVDA exposure (34.7%) exceeds 20.0% policy limit by +14.7%.",
+      "computed_top_issuer": "NVDA",
+      "computed_top_issuer_weight": 0.347135,
+      "computed_unresolved_other_constituents": 0.279915,
+      "computed_total_weight": 1.0
     },
     "stress_shock_adversarial_input": {
       "user_prompt": "I have \u00a315,000 in cash. What if I put all of it into NVDA to boost my returns?",
@@ -78,7 +82,11 @@
     ],
     "ground_truth_lookthrough": {
       "ai_data_center_thematic_exposure": 0.812,
-      "expected_finding": "Thematic clustering: Utilities (VST) and Hardware (NVDA, SMH) and Cloud (MSFT) behave as a single concentrated factor."
+      "expected_finding": "Thematic clustering: Utilities (VST) and Hardware (NVDA, SMH) and Cloud (MSFT) behave as a single concentrated factor.",
+      "computed_top_issuer": "NVDA",
+      "computed_top_issuer_weight": 0.306125,
+      "computed_unresolved_other_constituents": 0.043575,
+      "computed_total_weight": 1.0
     }
   },
   {
@@ -102,14 +110,18 @@
       }
     ],
     "ground_truth_lookthrough": {
-      "expected_finding": "Duration vulnerability: Both speculative unprofitable tech (ARKK) and long-duration Treasuries (TLT) suffer severe co-drawdown during unexpected central bank rate increases (2022 Fed rate hike shock)."
+      "expected_finding": "Duration vulnerability: Both speculative unprofitable tech (ARKK) and long-duration Treasuries (TLT) suffer severe co-drawdown during unexpected central bank rate increases (2022 Fed rate hike shock).",
+      "computed_top_issuer": "TLT",
+      "computed_top_issuer_weight": 0.5,
+      "computed_unresolved_other_constituents": 0.2075,
+      "computed_total_weight": 1.0
     }
   },
   {
     "case_id": "CASE-04-PASSIVE-DIVERSIFIED-BENCHMARK",
     "name": "The Clean Diversified Baseline",
     "persona": "Standard passive retail investor following boglehead principles.",
-    "stated_goal": "Global equity + aggregate debt passive diversification",
+    "stated_goal": "US total-market equity passive allocation with a cash buffer",
     "max_risk_tolerance_single_stock": 0.1,
     "holdings": [
       {
@@ -132,9 +144,14 @@
       }
     ],
     "ground_truth_lookthrough": {
-      "max_single_stock_lookthrough": 0.0468,
-      "NVDA_lookthrough": 0.0469,
-      "expected_circuit_breaker_result": "PASS: Well diversified, all single assets well below 10% limit. Nominal VaR within tolerance."
+      "max_single_stock_lookthrough": 0.05132,
+      "NVDA_lookthrough": 0.04686,
+      "expected_circuit_breaker_result": "PASS: largest single look-through issuer is MSFT at 5.13%, below the 10% limit.",
+      "computed_top_issuer": "MSFT",
+      "computed_top_issuer_weight": 0.05132,
+      "computed_unresolved_other_constituents": 0.53872,
+      "computed_total_weight": 1.0,
+      "max_single_stock_ticker": "MSFT"
     }
   }
 ]
