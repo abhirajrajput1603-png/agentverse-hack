@@ -23,6 +23,9 @@ class UserRiskProfile:
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
+    def to_prompt_context(self) -> Dict[str, Any]:
+        return asdict(self)
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> UserRiskProfile:
         return cls(

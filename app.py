@@ -164,11 +164,12 @@ limit_input = (
 )
 
 user_profile = UserRiskProfile(
-    horizon_years=int(horizon_years),
+    name=persona_input,
+    horizon_years=float(horizon_years),
     max_tolerable_loss_pct=float(max_loss_pct),
+    max_single_stock_limit=limit_input,
     objective=goal_input,
     experience_level=experience_level,
-    single_stock_limit=limit_input,
 )
 st.session_state["user_risk_profile"] = user_profile
 
@@ -674,8 +675,8 @@ with tab_whatif:
 with tab_agent:
     st.subheader("Autonomous AI Risk Investigator (Agent v2)")
     use_live_llm = st.toggle(
-        "Use Live Gemini 3.8 Flash Synthesis (uncheck for instant deterministic synthesis)",
-        value=bool(os.environ.get("GEMINI_API_KEY")),
+        "Use Live Gemini 3.8 Flash Synthesis (enable to query live LLM; default is instant deterministic synthesis)",
+        value=False,
     )
 
     with st.spinner("Running 6-tool autonomous investigation loop..."):
@@ -727,7 +728,15 @@ with tab_agent:
     st.subheader("Tamper-Evident Audit Log (`logs/audit.jsonl`)")
     recent_logs = audit_logger.get_recent_entries(limit=25)
     if recent_logs:
-        st.dataframe(pd.DataFrame(recent_logs[::-1]), use_container_width=True, height=280)
+        formatted_logs = [
+            {
+                "Timestamp": r.get("timestamp", ""),
+                "Event Type": r.get("event_type", ""),
+                "Details": json.dumps(r.get("details", {}), default=str),
+            }
+            for r in recent_logs[::-1]
+        ]
+        st.dataframe(pd.DataFrame(formatted_logs), use_container_width=True, height=280)
 
     with st.expander("🔍 View Complete Evidence Registry JSON"):
         st.json([e.to_dict() for e in investigation_report.raw_evidence])
