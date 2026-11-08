@@ -6,6 +6,7 @@ Testable without models or external data providers.
 
 from __future__ import annotations
 import math
+import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Any, Optional, Tuple
 
@@ -14,6 +15,7 @@ from portfolio_xray.data import (
     ASSET_METADATA,
     get_asset_info,
     STRESS_SCENARIOS,
+    COMPANY_SYNONYMS,
 )
 
 
@@ -57,7 +59,11 @@ class EffectiveExposure:
 
 
 def compute_lookthrough_exposure(portfolio: Portfolio) -> List[EffectiveExposure]:
-    """Decomposes all direct and ETF holdings to reveal true underlying company weights."""
+    """Decomposes ETF holdings to reveal overlapping company weights for assets the user has individually invested in.
+
+    Index and ETF holdings are NOT separated into constituent components unless
+    the investor has directly invested in that component individually.
+    """
     total_val = portfolio.total_value
     if total_val <= 0:
         return []
@@ -68,6 +74,13 @@ def compute_lookthrough_exposure(portfolio: Portfolio) -> List[EffectiveExposure
         t = h.ticker.upper().strip()
         holding_weights[t] = holding_weights.get(t, 0.0) + (h.market_value / total_val)
 
+    # Assets the investor has individually invested in (non-ETF holdings)
+    individually_invested = {
+        h.ticker.upper().strip()
+        for h in portfolio.holdings
+        if h.ticker.upper().strip() not in ETF_LOOKTHROUGH
+    }
+
     # Accumulate exposures
     direct_weights: Dict[str, float] = {}
     indirect_weights: Dict[str, float] = {}
@@ -75,13 +88,21 @@ def compute_lookthrough_exposure(portfolio: Portfolio) -> List[EffectiveExposure
 
     for ticker, weight in holding_weights.items():
         if ticker in ETF_LOOKTHROUGH:
-            # Distribute across ETF basket
+            # Only unpack constituents that the user has individually invested in
+            extracted_weight_fraction = 0.0
             for constituent, constituent_weight in ETF_LOOKTHROUGH[ticker].items():
-                effective_contribution = weight * constituent_weight
-                indirect_weights[constituent] = indirect_weights.get(constituent, 0.0) + effective_contribution
-                if constituent not in contributions:
-                    contributions[constituent] = {}
-                contributions[constituent][ticker] = effective_contribution
+                if constituent in individually_invested:
+                    effective_contribution = weight * constituent_weight
+                    indirect_weights[constituent] = indirect_weights.get(constituent, 0.0) + effective_contribution
+                    if constituent not in contributions:
+                        contributions[constituent] = {}
+                    contributions[constituent][ticker] = effective_contribution
+                    extracted_weight_fraction += constituent_weight
+
+            # The remaining portion of the ETF/index remains as the index itself
+            remaining_index_weight = weight * (1.0 - extracted_weight_fraction)
+            if remaining_index_weight > 0.00001:
+                direct_weights[ticker] = direct_weights.get(ticker, 0.0) + remaining_index_weight
         else:
             direct_weights[ticker] = direct_weights.get(ticker, 0.0) + weight
 
@@ -112,8 +133,11 @@ def compute_lookthrough_exposure(portfolio: Portfolio) -> List[EffectiveExposure
     return results
 
 
-def compute_thematic_exposure(exposures: List[EffectiveExposure]) -> List[Dict[str, Any]]:
-    """Sums effective exposures across macroeconomic, industry, and thematic drivers."""
+def compute_thematic_exposure(exposures: List[EffectiveExposure], min_weight: float = 0.05) -> List[Dict[str, Any]]:
+    """Sums effective exposures across macroeconomic, industry, and thematic drivers.
+
+    Filters out any themes with exposure under min_weight (default: 0.05 / 5%).
+    """
     theme_totals: Dict[str, float] = {}
     theme_assets: Dict[str, List[Dict[str, Any]]] = {}
 
@@ -129,6 +153,9 @@ def compute_thematic_exposure(exposures: List[EffectiveExposure]) -> List[Dict[s
 
     output = []
     for theme, total_weight in theme_totals.items():
+        # Exclude themes under 5% exposure
+        if round(total_weight, 4) < min_weight:
+            continue
         assets = sorted(theme_assets[theme], key=lambda a: a["weight"], reverse=True)
         output.append({
             "theme": theme,
@@ -189,7 +216,7 @@ def compute_risk_metrics(portfolio: Portfolio, exposures: List[EffectiveExposure
             s_j = exposures[j].annual_volatility
             # Bonds and cash have lower or negative equity correlation
             local_rho = rho
-            if "US_TREASURY" in exposures[i].ticker or "US_TREASURY" in exposures[j].ticker:
+            if any(k in exposures[i].ticker for k in ["US_TREASURY", "TLT", "BND"]) or any(k in exposures[j].ticker for k in ["US_TREASURY", "TLT", "BND"]):
                 local_rho = -0.15
             elif exposures[i].ticker == "CASH" or exposures[j].ticker == "CASH":
                 local_rho = 0.0
@@ -222,12 +249,118 @@ def compute_risk_metrics(portfolio: Portfolio, exposures: List[EffectiveExposure
     }
 
 
-def run_stress_tests(portfolio: Portfolio, exposures: List[EffectiveExposure]) -> List[Dict[str, Any]]:
-    """Evaluates portfolio drawdown impact across historical and macro shock scenarios."""
+def select_stress_scenarios(
+    portfolio: Portfolio,
+    exposures: List[EffectiveExposure],
+    limit: int = 4,
+) -> List[Dict[str, Any]]:
+    """Dynamically selects the most relevant stress scenarios tailored to the portfolio's factor concentrations.
+
+    - High AI / Tech / Semiconductor exposure: prioritizes AI Capex, Taiwan Chip Chokepoint, LLM Margin Squeeze, Tech Derating.
+    - FIG (Financial Institutions Group) / Banking / Rate-sensitive exposure: prioritizes Regional Banking Runs, Yield Curve Inversions, CRE Credit Spread Blowouts, and 2008 Credit Deleveraging.
+    - Aerospace & Defense / Space: prioritizes Satellite Grounding, Defense Sequestration, Aviation Bottlenecks.
+    - Energy & Commodities: prioritizes Stagflation Oil Shocks, Crude Demand Collapses.
+    - Crypto & Speculative: prioritizes Crypto Winter & Stablecoin Contagion.
+    - Broad / Macro Core: incorporates foundational baseline liquidity & duration shocks.
+    """
+    total_val = portfolio.total_value
+    if not exposures or total_val <= 0:
+        return STRESS_SCENARIOS[:limit]
+
+    # Calculate thematic exposure weights
+    theme_weights: Dict[str, float] = {}
+    for exp in exposures:
+        for theme in exp.themes:
+            theme_weights[theme] = theme_weights.get(theme, 0.0) + exp.total_weight
+
+    # Sector / Theme cluster weights
+    ai_weight = sum(theme_weights.get(t, 0.0) for t in [
+        "AI Infrastructure & Capex", "Semiconductor Supply Chain", "Generative AI",
+        "High Growth Tech", "Cloud Computing", "Mega-Cap Tech", "Geopolitical Taiwan Risk"
+    ])
+    fig_weight = sum(theme_weights.get(t, 0.0) for t in [
+        "Banking & Credit", "Financial Services", "Credit Spread Exposure",
+        "Interest Rate Sensitive (Yield Curve)", "Interest Rate Duration", "Mortgage Rate Prepayment"
+    ])
+    defense_weight = sum(theme_weights.get(t, 0.0) for t in [
+        "Aerospace & Defense", "Government Defense Prime", "High Growth Space Tech",
+        "Satellite Communications (Starlink)", "Commercial Aviation", "Defense & Intelligence AI"
+    ])
+    energy_weight = sum(theme_weights.get(t, 0.0) for t in [
+        "Energy & Commodities", "Nuclear Energy & Power Demand", "Inflation Hedge"
+    ])
+    consumer_weight = sum(theme_weights.get(t, 0.0) for t in [
+        "Consumer Discretionary", "Consumer Hardware & Ecosystem", "Mobility & Gig Economy", "EV & Clean Tech"
+    ])
+    crypto_weight = sum(theme_weights.get(t, 0.0) for t in [
+        "Crypto & Digital Assets", "Fintech Speculation"
+    ])
+
+    # Score each scenario based on relevance to portfolio
+    scored_scenarios = []
+    for scen in STRESS_SCENARIOS:
+        cat = scen.get("category", "macro")
+        target_themes = scen.get("target_themes", [])
+
+        # 1. Base theme relevance score from matching portfolio themes
+        base_relevance = sum(theme_weights.get(t, 0.0) for t in target_themes)
+
+        # 2. Factor cluster boosts based on dominant exposure
+        cluster_boost = 0.0
+        if cat == "ai":
+            if ai_weight >= 0.20:
+                cluster_boost = ai_weight * 2.5
+            elif ai_weight > 0.05:
+                cluster_boost = ai_weight * 1.0
+        elif cat == "fig":
+            if fig_weight >= 0.12:
+                cluster_boost = fig_weight * 3.0  # Strong boost for FIG / Rates
+            elif fig_weight > 0.04:
+                cluster_boost = fig_weight * 1.5
+        elif cat == "defense":
+            if defense_weight >= 0.12:
+                cluster_boost = defense_weight * 3.0
+            elif defense_weight > 0.04:
+                cluster_boost = defense_weight * 1.5
+        elif cat == "energy":
+            if energy_weight >= 0.12:
+                cluster_boost = energy_weight * 2.5
+            elif energy_weight > 0.04:
+                cluster_boost = energy_weight * 1.2
+        elif cat == "crypto":
+            if crypto_weight >= 0.05:
+                cluster_boost = crypto_weight * 4.0
+        elif cat == "consumer":
+            if consumer_weight >= 0.15:
+                cluster_boost = consumer_weight * 1.8
+        elif cat in ("macro", "liquidity", "rates"):
+            # Core macro scenarios have baseline relevance so they serve as foundational anchors
+            cluster_boost = 0.25
+
+        score = base_relevance + cluster_boost
+        scored_scenarios.append((score, scen))
+
+    # Sort scenarios by score descending
+    scored_scenarios.sort(key=lambda x: x[0], reverse=True)
+
+    # Pick top scenarios
+    selected = [scen for _, scen in scored_scenarios[:limit]]
+    return selected
+
+
+def run_stress_tests(
+    portfolio: Portfolio,
+    exposures: List[EffectiveExposure],
+    scenarios: Optional[List[Dict[str, Any]]] = None,
+) -> List[Dict[str, Any]]:
+    """Evaluates portfolio drawdown impact across dynamically selected or specified shock scenarios."""
     total_val = portfolio.total_value
     results = []
 
-    for scenario in STRESS_SCENARIOS:
+    if scenarios is None:
+        scenarios = select_stress_scenarios(portfolio, exposures, limit=4)
+
+    for scenario in scenarios:
         shocks = scenario["shocks"]
         default_shock = scenario.get("default_equity_shock", -0.15)
         
@@ -241,7 +374,7 @@ def run_stress_tests(portfolio: Portfolio, exposures: List[EffectiveExposure]) -
                 asset_shock = sum(matched_shocks) / len(matched_shocks)
             elif exp.ticker == "CASH":
                 asset_shock = shocks.get("Capital Preservation", 0.0)
-            elif "US_TREASURY" in exp.ticker:
+            elif "US_TREASURY" in exp.ticker or exp.ticker in ("TLT", "BND"):
                 asset_shock = shocks.get("Defensive Safe Haven", default_shock * 0.2)
             else:
                 asset_shock = default_shock
@@ -260,6 +393,8 @@ def run_stress_tests(portfolio: Portfolio, exposures: List[EffectiveExposure]) -
         results.append({
             "scenario_id": scenario["id"],
             "name": scenario["name"],
+            "category": scenario.get("category", "macro"),
+            "category_badge": scenario.get("category_badge", "Macro Risk"),
             "description": scenario["description"],
             "drawdown_pct": round(portfolio_shock * 100.0, 2),
             "dollar_drawdown": round(dollar_drawdown, 2),
@@ -270,9 +405,34 @@ def run_stress_tests(portfolio: Portfolio, exposures: List[EffectiveExposure]) -
     return results
 
 
+def resolve_symbol_or_name(raw: str) -> str:
+    """Resolves a ticker symbol, company name, or synonym into a canonical ticker."""
+    s = str(raw).strip()
+    if not s:
+        return "CUSTOM"
+    upper = s.upper()
+    if upper in ASSET_METADATA:
+        return upper
+    lower_norm = re.sub(r"\s+", " ", s.lower()).strip()
+    if lower_norm in COMPANY_SYNONYMS:
+        return COMPANY_SYNONYMS[lower_norm]
+    stripped = re.sub(r"[^a-zA-Z0-9.]", "", s).lower()
+    if stripped in COMPANY_SYNONYMS:
+        return COMPANY_SYNONYMS[stripped]
+    for token in lower_norm.split():
+        clean_tok = re.sub(r"[^a-zA-Z0-9.]", "", token)
+        if clean_tok in COMPANY_SYNONYMS:
+            return COMPANY_SYNONYMS[clean_tok]
+    for sym, meta in ASSET_METADATA.items():
+        name = meta.get("name", "").lower()
+        if stripped and (stripped in name or name in stripped or lower_norm in name):
+            return sym
+    return upper
+
+
 def simulate_what_if(
     current_portfolio: Portfolio,
-    target_allocations: Dict[str, float],  # Ticker -> Target % of portfolio (0 to 100)
+    target_allocations: Dict[str, float],  # Ticker or Stock Name -> Target % of portfolio (0 to 100)
 ) -> Dict[str, Any]:
     """Compares current portfolio against a proposed target allocation with full risk deltas."""
     total_val = current_portfolio.total_value
@@ -297,12 +457,18 @@ def simulate_what_if(
     else:
         norm_targets = {t: (pct / total_target) * 100.0 for t, pct in target_allocations.items()}
 
+    target_ticker_resolved = ""
     for ticker, pct in norm_targets.items():
-        t = ticker.upper().strip()
+        t = resolve_symbol_or_name(ticker)
+        if not target_ticker_resolved and t != "SPY":
+            target_ticker_resolved = t
         allocated_dollars = (pct / 100.0) * total_val
         price = known_prices.get(t, default_prices.get(t, 100.0))
         shares = allocated_dollars / price
         proposed_holdings.append(Holding(ticker=t, shares=shares, price=price))
+
+    if not target_ticker_resolved and norm_targets:
+        target_ticker_resolved = resolve_symbol_or_name(list(norm_targets.keys())[0])
 
     proposed_portfolio = Portfolio(holdings=proposed_holdings, user_profile=current_portfolio.user_profile)
 
@@ -313,13 +479,31 @@ def simulate_what_if(
     cur_metrics = compute_risk_metrics(current_portfolio, cur_exp)
     prop_metrics = compute_risk_metrics(proposed_portfolio, prop_exp)
 
-    cur_stress = run_stress_tests(current_portfolio, cur_exp)
-    prop_stress = run_stress_tests(proposed_portfolio, prop_exp)
+    # Dynamic stress scenarios tailored to the proposed allocation
+    shared_scenarios = select_stress_scenarios(proposed_portfolio, prop_exp, limit=4)
+    cur_stress = run_stress_tests(current_portfolio, cur_exp, scenarios=shared_scenarios)
+    prop_stress = run_stress_tests(proposed_portfolio, prop_exp, scenarios=shared_scenarios)
 
     # Risk Profile Alignment Evaluation
     tolerance = current_portfolio.user_profile.get("risk_tolerance", "Moderate")
-    max_safe_vol = {"Conservative": 12.0, "Moderate": 22.0, "Aggressive": 35.0}.get(tolerance, 22.0)
-    max_safe_top1 = {"Conservative": 15.0, "Moderate": 25.0, "Aggressive": 40.0}.get(tolerance, 25.0)
+    max_safe_vol = {
+        "Very Low": 8.0,
+        "Low": 12.0,
+        "Conservative": 12.0,
+        "Moderate": 22.0,
+        "High": 30.0,
+        "Very High": 42.0,
+        "Aggressive": 42.0,
+    }.get(tolerance, 22.0)
+    max_safe_top1 = {
+        "Very Low": 10.0,
+        "Low": 15.0,
+        "Conservative": 15.0,
+        "Moderate": 25.0,
+        "High": 35.0,
+        "Very High": 50.0,
+        "Aggressive": 50.0,
+    }.get(tolerance, 25.0)
 
     profile_warnings = []
     if prop_metrics["annual_volatility"] > max_safe_vol:
@@ -359,6 +543,10 @@ def simulate_what_if(
         ],
         "profile_warnings": profile_warnings,
         "is_aligned_with_profile": len(profile_warnings) == 0,
+        "resolved_target": {
+            "ticker": target_ticker_resolved,
+            "name": ASSET_METADATA.get(target_ticker_resolved, {}).get("name", target_ticker_resolved),
+        },
     }
 
 
@@ -366,52 +554,248 @@ def analyze_headline_event(
     portfolio: Portfolio,
     headline: str,
 ) -> Dict[str, Any]:
-    """Analyzes how an external market headline or macro event impacts the portfolio's specific exposures."""
+    """Analyzes how an external market headline or macro event impacts the portfolio's specific exposures.
+    
+    Dynamically identifies:
+    1. Sentiment polarity (positive/easing/surge vs negative/tightening/slump)
+    2. Multi-factor topic domains (rates/fed, AI/chips, energy/oil, defense/space, banks/credit, tariffs, macro)
+    3. Direct company/ticker mentions (e.g. SpaceX, Tesla, Nvidia, Apple, etc.)
+    """
     exposures = compute_lookthrough_exposure(portfolio)
-    headline_lower = headline.lower()
+    headline_lower = headline.lower().strip()
 
-    # Identify relevant economic shock themes
     shocked_themes: Dict[str, float] = {}
-    rationale = []
+    direct_asset_shocks: Dict[str, float] = {}
+    rationale: List[str] = []
 
-    if any(k in headline_lower for k in ["rate", "fed", "powell", "inflation", "yield", "treasury", "central bank", "basis point", "hike"]):
-        shocked_themes["High Growth Tech"] = -0.08
-        shocked_themes["Semiconductor Supply Chain"] = -0.07
-        shocked_themes["Interest Rate Duration"] = -0.09
-        shocked_themes["Banking & Credit"] = 0.02
-        rationale.append("Higher interest rates or persistent inflation compress future valuation multiples and increase bond discount rates.")
+    def has_any_word(words: List[str]) -> bool:
+        return any(re.search(r"\b" + re.escape(w) + r"\b", headline_lower) for w in words)
 
-    if any(k in headline_lower for k in ["ai", "capex", "data center", "nvidia", "gpu", "chip", "semiconductor", "tsmc", "asml", "export"]):
-        shocked_themes["AI Infrastructure & Capex"] = -0.12
-        shocked_themes["Semiconductor Supply Chain"] = -0.14
-        shocked_themes["Nuclear Energy & Power Demand"] = -0.08
-        rationale.append("Headline directly targets semiconductor hardware, AI infrastructure spending, or supply chain bottlenecks.")
+    positive_cues = [
+        "cut", "cuts", "cutting", "slash", "slashes", "slashed", "easing", "eased", "ease",
+        "dovish", "pivot", "relief", "falls", "falling", "cools", "cooling", "slows", "slowing",
+        "lower", "drop", "drops", "subside", "subsides", "pause", "pauses",
+        "beat", "beats", "beating", "surge", "surges", "surged", "soar", "soars", "soared",
+        "jump", "jumps", "jumped", "rally", "rallies", "rallied", "gain", "gains", "gained",
+        "boom", "booming", "boost", "boosts", "boosted", "record", "growth", "accelerate",
+        "accelerates", "accelerated", "outperform", "outperforms", "bullish", "resilient",
+        "resilience", "strong", "strength", "optimism", "optimistic", "stimulus", "expand",
+        "expands", "expansion", "breakthrough", "approval", "approves", "approved", "contract",
+        "win", "wins", "won", "award", "awarded", "success", "successful", "historic"
+    ]
 
-    if any(k in headline_lower for k in ["oil", "gas", "energy", "middle east", "opec", "crude"]):
-        shocked_themes["Energy & Commodities"] = 0.12
-        shocked_themes["Consumer Discretionary"] = -0.05
-        rationale.append("Energy and crude price shocks disproportionately reward energy producers while raising consumer input costs.")
+    negative_cues = [
+        "hike", "hikes", "hiking", "hiked", "increase", "increases", "tightening", "tighten",
+        "tightened", "hawkish", "spikes", "spiking", "spiked", "hot", "hotter", "persistent",
+        "sticky", "higher", "crash", "crashes", "crashed", "plunge", "plunges", "plunged",
+        "slump", "slumps", "slumped", "sink", "sinks", "sank", "tumble", "tumbles", "tumbled",
+        "selloff", "rout", "miss", "misses", "missed", "warning", "warns", "warned",
+        "layoff", "layoffs", "curb", "curbs", "curbed", "ban", "bans", "banned", "tariff",
+        "tariffs", "sanction", "sanctions", "probe", "investigation", "lawsuit", "antitrust",
+        "default", "defaults", "defaulted", "bankruptcy", "crisis", "panic", "fear", "freeze",
+        "halt", "halts", "halted", "recession", "downgrade", "downgrades", "bearish", "fail",
+        "fails", "failed", "grounding", "grounded", "explosion", "loss", "losses", "weak",
+        "weakness", "bubble"
+    ]
 
-    if any(k in headline_lower for k in ["recession", "gdp", "job", "layoff", "slowdown", "weakness"]):
-        shocked_themes["Consumer Discretionary"] = -0.08
-        shocked_themes["Broad Market Exposure"] = -0.05
-        shocked_themes["Defensive Consumer"] = 0.02
-        rationale.append("Economic slowdown signals impact cyclical and consumer discretionary businesses while favoring defensive staples.")
+    # 1. Fed / Interest Rates / Inflation / Yields / Central Bank
+    rate_terms = ["rate", "rates", "fed", "powell", "inflation", "cpi", "ppi", "yield", "yields", "treasury", "treasuries", "central bank", "basis point", "bps", "fomc"]
+    if has_any_word(rate_terms):
+        rate_easing_cues = [
+            "cut", "cuts", "cutting", "slash", "slashes", "slashed", "easing", "ease", "dovish",
+            "pivot", "relief", "falls", "falling", "cools", "cooling", "slows", "slowing", "lower",
+            "drop", "drops", "pause", "pauses", "down", "subside", "soft landing"
+        ]
+        rate_tightening_cues = [
+            "hike", "hikes", "hiking", "increase", "increases", "tightening", "tighten", "hawkish",
+            "spikes", "spiking", "surges", "hot", "hotter", "persistent", "sticky", "higher", "accelerate"
+        ]
+        is_easing = has_any_word(rate_easing_cues)
+        is_tightening = has_any_word(rate_tightening_cues)
 
-    if not shocked_themes:
-        # Default mild broad equity sensitivity
-        shocked_themes["Broad Market Exposure"] = -0.03
-        rationale.append("Headline reflects general market volatility with modest cross-asset sensitivity.")
+        if "rate cut" in headline_lower or "cut rate" in headline_lower or "inflation falls" in headline_lower or "inflation cools" in headline_lower or "cpi falls" in headline_lower or "surprise rate cut" in headline_lower:
+            is_easing = True
+            is_tightening = False
+        elif "rate hike" in headline_lower or "inflation spikes" in headline_lower or "hot cpi" in headline_lower or "yields surge" in headline_lower:
+            is_tightening = True
+            is_easing = False
+
+        if is_easing:
+            shocked_themes["High Growth Tech"] = 0.075
+            shocked_themes["Semiconductor Supply Chain"] = 0.07
+            shocked_themes["Interest Rate Duration"] = 0.08
+            shocked_themes["Consumer Discretionary"] = 0.05
+            shocked_themes["AI Infrastructure & Capex"] = 0.06
+            shocked_themes["Broad Market Exposure"] = 0.035
+            shocked_themes["Banking & Credit"] = -0.015
+            rationale.append("Rate cuts and cooling inflation reduce the cost of capital and lower bond discount rates, driving valuation multiple expansion across high-growth tech, duration, and consumer equities.")
+        else:
+            shocked_themes["High Growth Tech"] = -0.08
+            shocked_themes["Semiconductor Supply Chain"] = -0.07
+            shocked_themes["Interest Rate Duration"] = -0.09
+            shocked_themes["Consumer Discretionary"] = -0.05
+            shocked_themes["Banking & Credit"] = 0.02
+            rationale.append("Higher interest rates or persistent inflation compress future valuation multiples and increase bond discount rates across growth and duration assets.")
+
+    # 2. AI / Semiconductor / Tech Hardware / Cloud / Datacenter
+    ai_terms = ["ai", "artificial intelligence", "chip", "chips", "semiconductor", "semis", "gpu", "gpus", "capex", "data center", "datacenter", "nvidia", "nvda", "tsmc", "asml", "amd", "blackwell", "cloud", "hyperscaler", "compute"]
+    if has_any_word(ai_terms):
+        ai_pos = has_any_word(["beat", "beats", "surge", "surges", "record", "boom", "expansion", "breakthrough", "soar", "jump", "rally", "growth", "order", "contract", "demand", "supercycle", "upgrade", "partnership", "all-time high", "revenue surge"])
+        ai_neg = has_any_word(["curb", "curbs", "ban", "bans", "restriction", "restrictions", "export", "antitrust", "probe", "pause", "bubble", "slowdown", "delay", "delays", "shortage", "miss", "misses", "slump", "drop", "plunge", "investigation", "halt", "halts", "halted", "attack", "cyberattack", "outage", "disruption", "lawsuit", "defect"])
+
+        if ai_pos and not ai_neg:
+            shocked_themes["AI Infrastructure & Capex"] = 0.12
+            shocked_themes["Semiconductor Supply Chain"] = 0.14
+            shocked_themes["High Growth Tech"] = 0.08
+            shocked_themes["Cloud Computing"] = 0.08
+            shocked_themes["Nuclear Energy & Power Demand"] = 0.06
+            rationale.append("Surging AI datacenter capex, record chip demand, and technological breakthroughs drive strong multiple expansion across hardware, semiconductor, and power infrastructure equities.")
+        elif ai_neg:
+            shocked_themes["AI Infrastructure & Capex"] = -0.12
+            shocked_themes["Semiconductor Supply Chain"] = -0.14
+            shocked_themes["High Growth Tech"] = -0.08
+            shocked_themes["Cloud Computing"] = -0.08
+            rationale.append("Headline signals hardware export curbs, capex scale-backs, or chip demand slowdown, triggering valuation compression across semiconductor and AI infrastructure assets.")
+
+    # 3. Aerospace / Defense / Space / Military
+    space_defense_terms = ["spacex", "space x", "starship", "starlink", "space", "aerospace", "defense", "military", "pentagon", "satellite", "boeing", "lockheed", "rtx", "rocket", "launch", "nasa", "orbit", "weapon", "arms", "nato"]
+    if has_any_word(space_defense_terms):
+        space_pos = has_any_word(["orbit", "success", "successful", "catch", "win", "wins", "won", "award", "awarded", "contract", "budget", "procurement", "soar", "record", "approval", "deal", "expansion", "launch"])
+        space_neg = has_any_word(["grounding", "grounded", "explosion", "failure", "fails", "failed", "crash", "delay", "delays", "defect", "probe", "investigation", "cut", "strike"])
+
+        if space_pos and not space_neg:
+            shocked_themes["Aerospace & Defense"] = 0.12
+            shocked_themes["High Growth Tech"] = 0.03
+            rationale.append("Successful space mission milestones, increased defense appropriations, and major government contract awards boost aerospace and defense contractor valuations.")
+        elif space_neg:
+            shocked_themes["Aerospace & Defense"] = -0.12
+            rationale.append("Mission failures, FAA groundings, or defense spending scrutiny create operational headwinds and margin pressure for aerospace and defense holdings.")
+
+    # 4. Energy / Crude Oil / Commodities / OPEC / Middle East
+    energy_terms = ["oil", "crude", "gas", "energy", "opec", "petroleum", "middle east", "barrel", "bbl", "drilling", "pipeline"]
+    if has_any_word(energy_terms):
+        oil_plunge = has_any_word(["plunge", "plunges", "drop", "drops", "falls", "slump", "surplus", "glut", "peace", "deal", "output hike", "cooling"])
+        oil_surge = has_any_word(["spike", "spikes", "surge", "surges", "soar", "attack", "embargo", "cut", "cuts", "conflict", "war", "tension"])
+
+        if oil_plunge and not oil_surge:
+            shocked_themes["Energy & Commodities"] = -0.10
+            shocked_themes["Consumer Discretionary"] = 0.06
+            shocked_themes["Broad Market Exposure"] = 0.03
+            rationale.append("Falling crude prices provide input margin relief to transport, manufacturing, and consumer discretionary sectors while compressing energy producer cash flows.")
+        else:
+            shocked_themes["Energy & Commodities"] = 0.12
+            shocked_themes["Consumer Discretionary"] = -0.05
+            rationale.append("Energy and crude price spikes disproportionately reward energy producers while raising consumer transport costs and retail margin pressure.")
+
+    # 5. Banking / Financials / Credit / CRE
+    bank_terms = ["bank", "banks", "banking", "credit", "deposit", "deposits", "cre", "commercial real estate", "loan", "loans", "lending", "financials", "regional bank", "liquidity"]
+    if has_any_word(bank_terms):
+        bank_neg = has_any_word(["run", "runs", "flight", "default", "defaults", "crisis", "crunch", "contagion", "failure", "panic", "cre", "stress", "bailout"])
+        bank_pos = has_any_word(["record", "profit", "nim", "expansion", "beat", "deregulation", "capital", "dividend", "resilient"])
+
+        if bank_neg:
+            shocked_themes["Banking & Credit"] = -0.14
+            shocked_themes["Broad Market Exposure"] = -0.05
+            rationale.append("Credit distress, CRE default concerns, or deposit outflow pressures trigger risk aversion and valuation haircuts across banking and credit sectors.")
+        elif bank_pos:
+            shocked_themes["Banking & Credit"] = 0.08
+            shocked_themes["Broad Market Exposure"] = 0.03
+            rationale.append("Strong net interest margins, solid loan performance, and healthy capital ratios support financial institutions and credit stability.")
+
+    # 6. Macro / GDP / Jobs / Recession / Consumer
+    macro_terms = ["recession", "gdp", "job", "jobs", "payroll", "unemployment", "layoff", "layoffs", "consumer", "spending", "retail sales", "slowdown"]
+    if has_any_word(macro_terms):
+        macro_pos = has_any_word(["beat", "beats", "growth", "resilient", "resilience", "boom", "strong", "soft landing", "stimulus"])
+        macro_neg = has_any_word(["recession", "layoff", "layoffs", "slowdown", "weakness", "jump in unemployment", "slump", "stagflation"])
+
+        if macro_pos and not macro_neg:
+            shocked_themes["Consumer Discretionary"] = 0.06
+            shocked_themes["Broad Market Exposure"] = 0.05
+            shocked_themes["High Growth Tech"] = 0.04
+            rationale.append("Resilient macroeconomic growth, robust consumer spending, and healthy employment numbers support broad market equity multiples.")
+        elif macro_neg:
+            shocked_themes["Consumer Discretionary"] = -0.08
+            shocked_themes["Broad Market Exposure"] = -0.05
+            shocked_themes["Defensive Consumer"] = 0.02
+            rationale.append("Economic contraction signals and consumer spending weakness compress margins for cyclical businesses while favoring defensive consumer staples.")
+
+    # 7. Tariffs / Trade / Sanctions
+    trade_terms = ["tariff", "tariffs", "trade war", "sanction", "sanctions", "embargo", "trade deal"]
+    if has_any_word(trade_terms):
+        trade_pos = has_any_word(["deal", "pact", "agreement", "removal", "lifted", "roll back", "cut"])
+        trade_neg = has_any_word(["tariff", "tariffs", "hike", "war", "sanction", "sanctions", "retaliation"])
+
+        if trade_pos and not trade_neg:
+            shocked_themes["Broad Market Exposure"] = 0.04
+            shocked_themes["Semiconductor Supply Chain"] = 0.06
+            shocked_themes["Consumer Discretionary"] = 0.05
+            rationale.append("Easing trade friction, bilateral deals, and tariff rollbacks restore global supply chain fluidity and lower import costs.")
+        else:
+            shocked_themes["Broad Market Exposure"] = -0.04
+            shocked_themes["Semiconductor Supply Chain"] = -0.08
+            shocked_themes["Consumer Discretionary"] = -0.05
+            rationale.append("Escalating tariffs and trade barriers increase input costs and disrupt international supply chains across manufacturing, chips, and retail.")
+
+    # 8. Direct Company / Ticker Mentions
+    for name_or_sym, ticker in COMPANY_SYNONYMS.items():
+        if re.search(r"\b" + re.escape(name_or_sym) + r"\b", headline_lower):
+            is_pos = has_any_word(positive_cues)
+            is_neg = has_any_word(negative_cues)
+            company_shock = 0.12 if (is_pos and not is_neg) else (-0.12 if is_neg else (0.05 if is_pos else -0.05))
+            direct_asset_shocks[ticker] = company_shock
+            meta_name = ASSET_METADATA.get(ticker, {}).get("name", ticker)
+            action_desc = "catalyst upside and multiple expansion" if company_shock > 0 else "operational headwinds and valuation compression"
+            rationale.append(f"Headline directly spotlights {meta_name} ({ticker}), driving asset-specific {action_desc}.")
+
+    # Fallback for arbitrary / generic headlines
+    if not shocked_themes and not direct_asset_shocks:
+        is_pos = has_any_word(positive_cues)
+        is_neg = has_any_word(negative_cues)
+        if is_pos and not is_neg:
+            shocked_themes["Broad Market Exposure"] = 0.04
+            shocked_themes["High Growth Tech"] = 0.03
+            shocked_themes["Consumer Discretionary"] = 0.03
+            rationale.append("Headline conveys broad macroeconomic optimism and positive risk sentiment across equity markets.")
+        elif is_neg and not is_pos:
+            shocked_themes["Broad Market Exposure"] = -0.04
+            shocked_themes["High Growth Tech"] = -0.04
+            rationale.append("Headline triggers heightened risk aversion and downward equity repricing across broad market benchmarks.")
+        else:
+            shocked_themes["Broad Market Exposure"] = -0.02
+            rationale.append("Headline reflects general market volatility with modest cross-asset sensitivity.")
 
     # Calculate portfolio sensitivity
     affected_assets = []
     total_dollar_impact = 0.0
     total_val = portfolio.total_value
 
+    avg_theme_shock = (sum(shocked_themes.values()) / len(shocked_themes)) if shocked_themes else 0.0
+
     for exp in exposures:
         matching_shocks = [shocked_themes[t] for t in exp.themes if t in shocked_themes]
-        if matching_shocks:
+        direct_shock = direct_asset_shocks.get(exp.ticker)
+
+        # If exposure is an ETF, compute lookthrough sensitivity from directly shocked constituents
+        if direct_shock is None and exp.ticker in ETF_LOOKTHROUGH and direct_asset_shocks:
+            etf_weights = ETF_LOOKTHROUGH[exp.ticker]
+            etf_shock = sum(etf_weights.get(sym, 0.0) * direct_asset_shocks[sym] for sym in direct_asset_shocks if sym in etf_weights)
+            if abs(etf_shock) > 0.0001:
+                direct_shock = etf_shock
+
+        if direct_shock is not None:
+            if matching_shocks:
+                asset_shock = 0.7 * direct_shock + 0.3 * (sum(matching_shocks) / len(matching_shocks))
+            else:
+                asset_shock = direct_shock
+        elif matching_shocks:
             asset_shock = sum(matching_shocks) / len(matching_shocks)
+        elif avg_theme_shock != 0.0 and exp.ticker not in ["CASH", "BND", "TLT"]:
+            # Baseline market equity beta sensitivity for macro shocks
+            asset_shock = avg_theme_shock * 0.40
+        else:
+            asset_shock = 0.0
+
+        if abs(asset_shock) > 0.001:
             dollar_impact = exp.total_dollar_value * asset_shock
             total_dollar_impact += dollar_impact
             affected_assets.append({
@@ -430,6 +814,6 @@ def analyze_headline_event(
         "headline": headline,
         "net_estimated_impact_pct": round(net_shock_pct, 2),
         "net_estimated_dollar_impact": round(total_dollar_impact, 2),
-        "rationale": " ".join(rationale),
+        "rationale": " ".join(rationale) if rationale else "Analysis of external macro sensitivity.",
         "affected_holdings": affected_assets[:6],
     }
