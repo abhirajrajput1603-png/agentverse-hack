@@ -94,10 +94,12 @@ class LookThroughEngine:
                     f"Portfolio weights must sum to 1.0 (actual sum: {total_input_weight:.6f})"
                 )
             for h in raw_holdings:
+                # Normalise within tolerance to protect against floating point inaccuracy
+                norm_weight = float(h["weight"]) / total_input_weight
                 holdings.append(
                     Holding(
                         ticker=h["ticker"],
-                        weight=float(h["weight"]),
+                        weight=norm_weight,
                         name=h.get("name"),
                         allocation_gbp=h.get("allocation_gbp"),
                     )

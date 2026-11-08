@@ -1,0 +1,7 @@
+{
+  "stock_bid_ask_spread_bps": 5.0,
+  "etf_bid_ask_spread_bps": 2.0,
+  "fixed_commission_gbp": 4.99,
+  "quadratic_slippage_coefficient": 0.0000005,
+  "annual_etf_expense_drag_bps": 20.0
+}
