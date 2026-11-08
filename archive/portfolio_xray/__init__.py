@@ -12,6 +12,7 @@ from portfolio_xray.engine import (
     compute_thematic_exposure,
     compute_risk_metrics,
     run_stress_tests,
+    select_stress_scenarios,
     simulate_what_if,
     analyze_headline_event,
 )
