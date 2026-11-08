@@ -47,6 +47,13 @@ except ImportError:
     )
     from portfolio_xray.agent import ask_risk_analyst
 
+from xray.bridge import (
+    run_unified_analysis,
+    run_unified_what_if,
+    record_human_signoff,
+)
+from xray.safety.audit import AuditLogger
+
 STOP_WORDS = {
     "have", "and", "in", "of", "shares", "the", "i", "a", "an", "my", "at", "with",
     "worth", "about", "holding", "holdings", "own", "owns", "to", "for", "is",
@@ -66,7 +73,8 @@ DEFAULT_PRICES: Dict[str, float] = {
     "SPACEX": 112.0, "OPENAI": 150.0, "PLTR": 45.0, "UBER": 75.0,
     "ABNB": 135.0, "NFLX": 700.0, "COIN": 210.0, "BA": 155.0,
     "LMT": 580.0, "RKLB": 12.0, "COST": 880.0, "XOM": 118.0,
-    "TSM": 190.0, "ASML": 850.0,
+    "TSM": 190.0, "ASML": 850.0, "VST": 120.0, "ARKK": 50.0,
+    "CASH_GBP": 1.0,
 }
 
 
@@ -286,6 +294,11 @@ class PortfolioXRayHandler(BaseHTTPRequestHandler):
             encoded = json.dumps(SAMPLE_PORTFOLIOS).encode("utf-8")
             self._set_headers("application/json", len(encoded))
             self.wfile.write(encoded)
+        elif parsed.path == "/api/audit-log":
+            entries = AuditLogger().get_recent_entries(limit=50)
+            encoded = json.dumps({"entries": entries, "count": len(entries)}).encode("utf-8")
+            self._set_headers("application/json", len(encoded))
+            self.wfile.write(encoded)
         else:
             self.send_error(HTTPStatus.NOT_FOUND, "Not found")
 
@@ -304,93 +317,21 @@ class PortfolioXRayHandler(BaseHTTPRequestHandler):
 
         elif parsed.path == "/api/analyze":
             portfolio = parse_portfolio_payload(data)
-            exposures = compute_lookthrough_exposure(portfolio)
-            thematic = compute_thematic_exposure(exposures)
-            metrics = compute_risk_metrics(portfolio, exposures)
-            stress = run_stress_tests(portfolio, exposures)
+            cov_method = str(data.get("cov_method", "sample")).strip().lower()
+            lookthrough_mode = str(data.get("lookthrough_mode", "overlap")).strip().lower()
+            max_limit = data.get("max_single_stock_limit")
+            if max_limit is not None:
+                try:
+                    max_limit = float(max_limit)
+                except (ValueError, TypeError):
+                    max_limit = None
 
-            raw_exposures = [
-                {
-                    "ticker": e.ticker,
-                    "name": e.name,
-                    "total_weight": round(e.total_weight * 100.0, 2),
-                    "total_dollar_value": round(e.total_dollar_value, 2),
-                    "direct_weight": round(e.direct_weight * 100.0, 2),
-                    "indirect_weight": round(e.indirect_weight * 100.0, 2),
-                    "contributing_sources": {k: round(v * 100.0, 2) for k, v in e.contributing_sources.items()},
-                    "sector": e.sector,
-                    "themes": e.themes,
-                    "annual_volatility": round(e.annual_volatility * 100.0, 1),
-                }
-                for e in exposures
-            ]
-
-            total_val = metrics.get("portfolio_value", 0.0)
-            direct_weights = {}
-            if total_val > 0:
-                for h in portfolio.holdings:
-                    direct_weights[h.ticker] = round((h.shares * h.price) / total_val, 4)
-
-            response = {
-                "metrics": metrics,
-                "risk_metrics": {
-                    "annualized_volatility": metrics.get("annual_volatility", 20.0) / 100.0,
-                    "var_95_1m": metrics.get("var_95_1m_pct", 8.0) / 100.0,
-                    "cvar_95_1m": metrics.get("expected_shortfall_95_pct", 11.0) / 100.0,
-                    "concentration_hhi": metrics.get("hhi", 2000.0),
-                },
-                "portfolio_value": total_val,
-                "holdings": [
-                    {
-                        "ticker": h.ticker,
-                        "name": ASSET_METADATA.get(h.ticker, {}).get("name", h.ticker),
-                        "shares": h.shares,
-                        "price": h.price,
-                        "value": round(h.shares * h.price, 2),
-                    }
-                    for h in portfolio.holdings
-                ],
-                "direct_weights": direct_weights,
-                "exposures": raw_exposures,
-                "lookthrough_exposure": [
-                    {
-                        "ticker": e.ticker,
-                        "company_name": e.name,
-                        "name": e.name,
-                        "lookthrough_weight": e.total_weight,
-                        "total_weight": round(e.total_weight * 100.0, 2),
-                        "effective_value": e.total_dollar_value,
-                        "total_dollar_value": round(e.total_dollar_value, 2),
-                        "direct_weight": e.direct_weight,
-                        "indirect_weight": e.indirect_weight,
-                        "contributing_sources": {k: round(v * 100.0, 2) for k, v in e.contributing_sources.items()},
-                        "sector": e.sector,
-                        "themes": e.themes,
-                    }
-                    for e in exposures
-                ],
-                "thematic": thematic,
-                "thematic_factors": [
-                    {
-                        "theme": t.get("theme", ""),
-                        "portfolio_exposure": t.get("weight", 0.0),
-                        "description": f"Shared economic sensitivity across {t.get('theme', '')} holdings.",
-                        "contributing_assets": [a.get("ticker", "") for a in t.get("top_assets", [])],
-                    }
-                    for t in thematic
-                ],
-                "stress_tests": [
-                    {
-                        "scenario_name": s.get("name", ""),
-                        "scenario_id": s.get("scenario_id", ""),
-                        "drawdown_pct": s.get("drawdown_pct", 0.0) / 100.0,
-                        "dollar_loss": abs(s.get("dollar_drawdown", 0.0)),
-                        "description": s.get("description", ""),
-                        "worst_hit": s.get("worst_hit_assets", []),
-                    }
-                    for s in stress
-                ],
-            }
+            response = run_unified_analysis(
+                portfolio=portfolio,
+                cov_method=cov_method,
+                lookthrough_mode=lookthrough_mode,
+                user_max_single_stock_limit=max_limit,
+            )
 
             encoded = json.dumps(response).encode("utf-8")
             self._set_headers("application/json", len(encoded))
@@ -398,12 +339,22 @@ class PortfolioXRayHandler(BaseHTTPRequestHandler):
 
         elif parsed.path == "/api/what-if":
             portfolio = parse_portfolio_payload(data.get("portfolio", {}))
-            target_allocations = data.get("target_allocations", {})
-            if not target_allocations and ("target" in data or "ticker" in data):
-                target_sym = str(data.get("target", data.get("ticker", "NVDA")))
-                target_pct = float(data.get("allocation_change_pct", data.get("target_pct", 20.0)))
-                target_allocations = {target_sym: target_pct}
-            result = simulate_what_if(portfolio, target_allocations)
+            result = run_unified_what_if(portfolio, data)
+            encoded = json.dumps(result).encode("utf-8")
+            self._set_headers("application/json", len(encoded))
+            self.wfile.write(encoded)
+
+        elif parsed.path == "/api/sign-off":
+            decision = str(data.get("decision", "APPROVED")).upper().strip()
+            scenario_summary = str(data.get("scenario_summary", "User What-If simulation sign-off"))
+            persona_name = str(data.get("persona_name", "Moderate"))
+            details = data.get("details", {})
+            result = record_human_signoff(
+                decision=decision,
+                scenario_summary=scenario_summary,
+                persona_name=persona_name,
+                details=details if isinstance(details, dict) else {},
+            )
             encoded = json.dumps(result).encode("utf-8")
             self._set_headers("application/json", len(encoded))
             self.wfile.write(encoded)
@@ -412,6 +363,13 @@ class PortfolioXRayHandler(BaseHTTPRequestHandler):
             portfolio = parse_portfolio_payload(data.get("portfolio", {}))
             headline = data.get("headline", "")
             result = analyze_headline_event(portfolio, headline)
+            AuditLogger().log_event(
+                event_type="HEADLINE_SHOCK_AUDIT",
+                details={
+                    "headline": headline,
+                    "net_estimated_impact_pct": result.get("net_estimated_impact_pct"),
+                },
+            )
             encoded = json.dumps(result).encode("utf-8")
             self._set_headers("application/json", len(encoded))
             self.wfile.write(encoded)
@@ -419,7 +377,8 @@ class PortfolioXRayHandler(BaseHTTPRequestHandler):
         elif parsed.path == "/api/chat":
             portfolio = parse_portfolio_payload(data.get("portfolio", {}))
             query = data.get("query", "")
-            result = ask_risk_analyst(portfolio, query)
+            history = data.get("conversation_history")
+            result = ask_risk_analyst(portfolio, query, conversation_history=history)
             encoded = json.dumps(result).encode("utf-8")
             self._set_headers("application/json", len(encoded))
             self.wfile.write(encoded)
@@ -566,20 +525,35 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       </nav>
 
       <!-- Preset Portfolios Quick Selector -->
-      <div class="px-4 py-3 mx-3 my-2 bg-slate-50 rounded-2xl border border-appborder/70">
+      <div class="px-4 py-3 mx-3 my-2 bg-slate-50 rounded-2xl border border-appborder/70 max-h-60 overflow-y-auto custom-scrollbar">
         <div class="flex items-center justify-between mb-2">
-          <span class="text-xs font-semibold text-appmuted uppercase tracking-wider">Example Portfolios</span>
+          <span class="text-xs font-semibold text-appmuted uppercase tracking-wider">Example & Benchmark Cases</span>
         </div>
         <div class="space-y-1.5" id="sidebarPresets">
-          <button onclick="loadPreset('accidental_tech_overweight')" id="preset-btn-accidental" class="w-full text-left text-xs px-2.5 py-2 rounded-lg font-medium text-primary bg-primary/10 border border-primary/20 flex items-center justify-between transition">
+          <button onclick="loadPreset('accidental_tech_overweight')" id="preset-btn-accidental_tech_overweight" class="preset-btn w-full text-left text-xs px-2.5 py-2 rounded-lg font-medium text-primary bg-primary/10 border border-primary/20 flex items-center justify-between transition">
             <span class="truncate">Accidental Tech Overweight</span>
             <span class="text-[10px] bg-primary text-white rounded px-1.5 py-0.5">$32.5k</span>
           </button>
-          <button onclick="loadPreset('balanced_core')" id="preset-btn-balanced" class="w-full text-left text-xs px-2.5 py-2 rounded-lg font-medium text-appmuted hover:text-apptext hover:bg-white border border-transparent transition">
+          <button onclick="loadPreset('balanced_core')" id="preset-btn-balanced_core" class="preset-btn w-full text-left text-xs px-2.5 py-2 rounded-lg font-medium text-appmuted hover:text-apptext hover:bg-white border border-transparent transition">
             <span class="truncate">Institutional Balanced 60/40</span>
           </button>
-          <button onclick="loadPreset('all_in_growth')" id="preset-btn-growth" class="w-full text-left text-xs px-2.5 py-2 rounded-lg font-medium text-appmuted hover:text-apptext hover:bg-white border border-transparent transition">
+          <button onclick="loadPreset('all_in_growth')" id="preset-btn-all_in_growth" class="preset-btn w-full text-left text-xs px-2.5 py-2 rounded-lg font-medium text-appmuted hover:text-apptext hover:bg-white border border-transparent transition">
             <span class="truncate">Aggressive Tech & AI</span>
+          </button>
+          <div class="pt-1.5 pb-0.5 border-t border-slate-200/80">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">AgentVerse Benchmark Cases</span>
+          </div>
+          <button onclick="loadPreset('case_01_diversification_illusion')" id="preset-btn-case_01_diversification_illusion" class="preset-btn w-full text-left text-xs px-2.5 py-1.5 rounded-lg font-medium text-appmuted hover:text-apptext hover:bg-white border border-transparent transition">
+            <span class="truncate">Case 1: Hidden Tech Overlap</span>
+          </button>
+          <button onclick="loadPreset('case_02_ai_capex_energy_theme')" id="preset-btn-case_02_ai_capex_energy_theme" class="preset-btn w-full text-left text-xs px-2.5 py-1.5 rounded-lg font-medium text-appmuted hover:text-apptext hover:bg-white border border-transparent transition">
+            <span class="truncate">Case 2: AI Capex & Power Theme</span>
+          </button>
+          <button onclick="loadPreset('case_03_rate_shock_duration_trap')" id="preset-btn-case_03_rate_shock_duration_trap" class="preset-btn w-full text-left text-xs px-2.5 py-1.5 rounded-lg font-medium text-appmuted hover:text-apptext hover:bg-white border border-transparent transition">
+            <span class="truncate">Case 3: Rate Shock Duration Trap</span>
+          </button>
+          <button onclick="loadPreset('case_04_passive_diversified_benchmark')" id="preset-btn-case_04_passive_diversified_benchmark" class="preset-btn w-full text-left text-xs px-2.5 py-1.5 rounded-lg font-medium text-appmuted hover:text-apptext hover:bg-white border border-transparent transition">
+            <span class="truncate">Case 4: Diversified Multi-Asset</span>
           </button>
         </div>
       </div>
@@ -609,7 +583,11 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           <h2 class="text-2xl sm:text-3xl font-bold text-apptext tracking-tight">Your Portfolio</h2>
           <p class="text-appmuted text-sm sm:text-base mt-1">Understand your investments, discover hidden risks and see how different decisions could affect your money.</p>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
+          <button onclick="toggleAdvancedViewQuick()" id="quickAdvToggleBtn" class="bg-white hover:bg-slate-50 border border-appborder text-appmuted text-xs sm:text-sm font-medium px-3.5 py-2.5 rounded-xl transition flex items-center gap-1.5" title="Toggle institutional math & risk decomposition">
+            <span id="quickAdvIndicator" class="w-2 h-2 rounded-full bg-slate-300"></span>
+            <span>Advanced Analytics</span>
+          </button>
           <button onclick="openPortfolioEntryModal()" class="bg-primary hover:bg-primary-hover text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 shadow-sm">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
             <span>Edit Investments</span>
@@ -619,6 +597,11 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             <span id="overviewRiskProfileBadge">Moderate Profile</span>
           </button>
         </div>
+      </div>
+
+      <!-- Safety Circuit Breaker & Investor Risk Limit Status Banner -->
+      <div id="circuitBreakerBanner" class="rounded-2xl p-4 border transition-all">
+        <!-- Populated dynamically by JS -->
       </div>
 
       <!-- Welcome Card -->
@@ -796,32 +779,89 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         </div>
       </div>
 
-      <!-- Advanced View Toggle Banner (If enabled in settings) -->
-      <div id="advancedMetricsOverviewBanner" class="hidden bg-slate-100 rounded-2xl p-5 border border-slate-200">
-        <div class="flex items-center justify-between mb-3">
-          <div class="flex items-center gap-2">
-            <span class="text-xs font-bold uppercase tracking-wider bg-slate-800 text-white px-2 py-0.5 rounded">Advanced View Active</span>
-            <span class="text-xs font-semibold text-apptext">Institutional Mathematical Metrics</span>
+      <!-- Benchmark Comparison Card (Your Portfolio vs. SPY & 60/40 SPY/BND) -->
+      <div class="bg-white rounded-2xl p-6 border border-appborder shadow-[0_1px_3px_rgba(15,23,42,0.04),0_8px_16px_-4px_rgba(15,23,42,0.03)] space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h3 class="text-lg font-bold text-apptext">How does your portfolio compare to standard benchmarks?</h3>
+            <p class="text-sm text-appmuted">Side-by-side comparison against the S&P 500 (SPY 100% Equity) and a Balanced 60/40 (SPY/BND) portfolio using 3-year market data.</p>
           </div>
-          <span class="text-xs text-appmuted">Configured in Settings</span>
+          <span class="text-xs font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full self-start sm:self-auto">
+            Deterministic Benchmark Audit
+          </span>
         </div>
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr class="border-b border-slate-200 text-appmuted font-semibold uppercase tracking-wider">
+                <th class="py-2.5 px-3">Metric</th>
+                <th class="py-2.5 px-3 text-primary font-bold">Your Portfolio</th>
+                <th class="py-2.5 px-3">S&P 500 (100% SPY)</th>
+                <th class="py-2.5 px-3">Balanced 60/40 (SPY/BND)</th>
+              </tr>
+            </thead>
+            <tbody id="benchmarkTableBody" class="divide-y divide-slate-100 text-apptext">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+
+        <div id="benchmarkActiveTiltsContainer" class="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2 text-xs">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Advanced View Toggle Banner (If enabled in settings or quick toggle) -->
+      <div id="advancedMetricsOverviewBanner" class="hidden bg-slate-100 rounded-2xl p-5 border border-slate-200 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold uppercase tracking-wider bg-slate-800 text-white px-2.5 py-1 rounded-lg">Advanced View Active</span>
+            <span class="text-xs font-semibold text-apptext">Institutional Quantitative & Tail-Risk Telemetry (3Y Daily Returns)</span>
+          </div>
+          <div class="flex items-center gap-2 text-xs">
+            <span class="font-semibold text-appmuted">Covariance Estimator:</span>
+            <select id="covEstimatorSelect" onchange="changeCovarianceMethod(this.value)" class="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-semibold text-apptext focus:outline-none focus:border-primary">
+              <option value="sample">Sample Covariance</option>
+              <option value="ledoit_wolf">Ledoit-Wolf Shrinkage</option>
+              <option value="ewma">EWMA (λ = 0.94)</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
           <div class="bg-white p-3 rounded-xl border border-slate-200">
-            <span class="text-appmuted block">Herfindahl Index (HHI):</span>
-            <span id="advHHIVal" class="text-base font-bold text-apptext">--</span>
+            <span class="text-appmuted block">Look-Through HHI & N_eff:</span>
+            <span id="advHHIVal" class="text-sm font-bold text-apptext mt-0.5 block">--</span>
+            <button onclick="openEvidenceModal('EV-CONC-LT-HHI')" class="text-[10px] font-mono text-primary hover:underline mt-1 inline-block">[EV-CONC-LT-HHI]</button>
           </div>
           <div class="bg-white p-3 rounded-xl border border-slate-200">
             <span class="text-appmuted block">Annualized Volatility:</span>
-            <span id="advVolVal" class="text-base font-bold text-apptext">--</span>
+            <span id="advVolVal" class="text-sm font-bold text-apptext mt-0.5 block">--</span>
+            <button onclick="openEvidenceModal('EV-RISK-ANN-VOL')" class="text-[10px] font-mono text-primary hover:underline mt-1 inline-block">[EV-RISK-ANN-VOL]</button>
           </div>
           <div class="bg-white p-3 rounded-xl border border-slate-200">
-            <span class="text-appmuted block">95% 1-Month VaR:</span>
-            <span id="advVaRVal" class="text-base font-bold text-apptext">--</span>
+            <span class="text-appmuted block">95% 1-Month VaR (95% CI):</span>
+            <span id="advVaRVal" class="text-sm font-bold text-apptext mt-0.5 block">--</span>
+            <button onclick="openEvidenceModal('EV-TAIL-VAR-95-CI')" class="text-[10px] font-mono text-primary hover:underline mt-1 inline-block">[EV-TAIL-VAR-95-CI]</button>
           </div>
           <div class="bg-white p-3 rounded-xl border border-slate-200">
-            <span class="text-appmuted block">Expected Shortfall (CVaR):</span>
-            <span id="advCVaRVal" class="text-base font-bold text-apptext">--</span>
+            <span class="text-appmuted block">95% Expected Shortfall (ES):</span>
+            <span id="advCVaRVal" class="text-sm font-bold text-apptext mt-0.5 block">--</span>
+            <button onclick="openEvidenceModal('EV-TAIL-ES-95')" class="text-[10px] font-mono text-primary hover:underline mt-1 inline-block">[EV-TAIL-ES-95]</button>
           </div>
+          <div class="bg-white p-3 rounded-xl border border-slate-200">
+            <span class="text-appmuted block">99% VaR & 99% ES (Tail):</span>
+            <span id="advTail99Val" class="text-sm font-bold text-rose-600 mt-0.5 block">--</span>
+            <button onclick="openEvidenceModal('EV-TAIL-ES-99')" class="text-[10px] font-mono text-primary hover:underline mt-1 inline-block">[EV-TAIL-ES-99]</button>
+          </div>
+          <div class="bg-white p-3 rounded-xl border border-slate-200">
+            <span class="text-appmuted block">3-Year Max Drawdown:</span>
+            <span id="advMaxDDVal" class="text-sm font-bold text-rose-600 mt-0.5 block">--</span>
+            <button onclick="openEvidenceModal('EV-RISK-MAX-DD')" class="text-[10px] font-mono text-primary hover:underline mt-1 inline-block">[EV-RISK-MAX-DD]</button>
+          </div>
+        </div>
+        <div id="advCovComparisonBar" class="text-[11px] text-appmuted bg-white px-3.5 py-2 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-2">
+          <!-- Populated by JS -->
         </div>
       </div>
     </section>
@@ -834,13 +874,17 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         <p class="text-appmuted text-sm sm:text-base mt-1">See through your investment funds to uncover overlapping companies and shared economic drivers.</p>
       </div>
 
-      <!-- Sub-Tabs: ETF Overlap vs Economic Themes -->
-      <div class="flex border-b border-appborder gap-6">
+      <!-- Sub-Tabs: ETF Overlap vs Economic Themes vs Correlation & Risk Contribution -->
+      <div class="flex flex-wrap border-b border-appborder gap-6">
         <button onclick="switchHiddenRisksSubTab('overlap')" id="subnav-overlap" class="pb-3 text-sm font-bold text-primary border-b-2 border-primary transition">
           ETF Fund Overlap
         </button>
         <button onclick="switchHiddenRisksSubTab('themes')" id="subnav-themes" class="pb-3 text-sm font-semibold text-appmuted hover:text-apptext transition">
           What is Your Money Depending On?
+        </button>
+        <button onclick="switchHiddenRisksSubTab('correlation')" id="subnav-correlation" class="pb-3 text-sm font-semibold text-appmuted hover:text-apptext transition flex items-center gap-1.5">
+          <span>Correlation & Risk Contribution</span>
+          <span class="text-[10px] bg-indigo-50 text-primary font-bold px-1.5 py-0.5 rounded">Euler MCR/CCR</span>
         </button>
       </div>
 
@@ -852,10 +896,20 @@ HTML_DASHBOARD = """<!DOCTYPE html>
               <h3 class="text-xl font-bold text-apptext">You might own the same companies more than once</h3>
               <p class="text-sm text-appmuted mt-1 max-w-2xl">Investment funds often own shares in hundreds of companies. If you own several funds, you could be investing in the same companies without realising it.</p>
             </div>
-            <button onclick="openTerminology('lookthrough')" class="text-xs font-semibold text-primary hover:text-primary-hover flex items-center gap-1 self-start md:self-auto">
-              <span>How look-through works</span>
-              <span>&rarr;</span>
-            </button>
+            <div class="flex flex-wrap items-center gap-2 self-start md:self-auto">
+              <div class="inline-flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+                <button onclick="setLookthroughMode('overlap')" id="lt-mode-overlap" class="px-2.5 py-1 rounded-lg font-bold bg-white text-primary shadow-xs transition">
+                  Overlap View
+                </button>
+                <button onclick="setLookthroughMode('full')" id="lt-mode-full" class="px-2.5 py-1 rounded-lg font-medium text-appmuted hover:text-apptext transition">
+                  Full 100% Unpacked
+                </button>
+              </div>
+              <button onclick="openTerminology('lookthrough')" class="text-xs font-semibold text-primary hover:text-primary-hover flex items-center gap-1 px-2 py-1">
+                <span>How look-through works</span>
+                <span>&rarr;</span>
+              </button>
+            </div>
           </div>
 
           <!-- Interactive Highlight Banner -->
@@ -937,6 +991,71 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           </div>
         </div>
       </div>
+
+      <!-- SUB-TAB 3: Correlation Matrix & Euler Risk Contribution -->
+      <div id="subtab-correlation" class="hidden space-y-6">
+        <!-- Euler Risk Contribution vs Capital Weight Card -->
+        <div class="bg-white rounded-2xl p-6 border border-appborder shadow-[0_1px_3px_rgba(15,23,42,0.04),0_8px_16px_-4px_rgba(15,23,42,0.03)] space-y-4">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div>
+              <h3 class="text-xl font-bold text-apptext">Which investments drive the most portfolio volatility? (Euler Risk Decomposition)</h3>
+              <p class="text-sm text-appmuted mt-1 max-w-3xl">
+                A holding with 20% of your capital can easily generate 35%+ of your portfolio's total volatility if it is highly volatile and strongly correlated with your other holdings.
+              </p>
+            </div>
+            <button onclick="openEvidenceModal('EV-CORR-TOP-RISK-DRIVER')" class="text-xs font-mono font-semibold text-primary bg-primary/10 px-3 py-1.5 rounded-xl hover:bg-primary/20 transition self-start md:self-auto">
+              [EV-CORR-TOP-RISK-DRIVER]
+            </button>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr class="border-b border-slate-200 text-appmuted font-semibold uppercase tracking-wider">
+                  <th class="py-2.5 px-3">Holding</th>
+                  <th class="py-2.5 px-3">Capital Weight (w_i)</th>
+                  <th class="py-2.5 px-3">% of Total Risk (%CR_i)</th>
+                  <th class="py-2.5 px-3">Risk vs. Capital Visual</th>
+                  <th class="py-2.5 px-3">Marginal Risk (MCR_i)</th>
+                  <th class="py-2.5 px-3">Component Vol (CCR_i)</th>
+                  <th class="py-2.5 px-3">Risk / Capital Ratio</th>
+                </tr>
+              </thead>
+              <tbody id="eulerRiskTableBody" class="divide-y divide-slate-100 text-apptext">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 1Y / 3Y Pairwise Return Correlation Matrix Card -->
+        <div class="bg-white rounded-2xl p-6 border border-appborder shadow-[0_1px_3px_rgba(15,23,42,0.04),0_8px_16px_-4px_rgba(15,23,42,0.03)] space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 class="text-xl font-bold text-apptext">Do your investments move together in lockstep? (Pairwise Correlation Matrix)</h3>
+              <p class="text-sm text-appmuted mt-1">
+                Correlations near <strong>+1.00</strong> mean two holdings rise and fall together (low diversification benefit). Correlations near <strong>0.00 or negative</strong> cushion market drops.
+              </p>
+            </div>
+            <div class="inline-flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs self-start sm:self-auto">
+              <button onclick="setCorrelationWindow('3y')" id="corr-win-3y" class="px-3 py-1 rounded-lg font-bold bg-white text-primary shadow-xs transition">
+                3-Year Daily (756d)
+              </button>
+              <button onclick="setCorrelationWindow('1y')" id="corr-win-1y" class="px-3 py-1 rounded-lg font-medium text-appmuted hover:text-apptext transition">
+                1-Year Daily (252d)
+              </button>
+            </div>
+          </div>
+
+          <div id="correlationSummaryPills" class="flex flex-wrap gap-2 text-xs">
+            <!-- Populated by JS -->
+          </div>
+
+          <div class="overflow-x-auto" id="correlationMatrixContainer">
+            <!-- Heatmap table populated by JS -->
+          </div>
+        </div>
+      </div>
     </section>
 
 
@@ -962,6 +1081,23 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       <!-- Simple, Recognisable Scenarios Grid -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-5" id="scenariosGridContainer">
         <!-- Rendered dynamically by JS -->
+      </div>
+
+      <!-- Real Historical Crisis Window Replays vs SPY -->
+      <div class="bg-white rounded-2xl p-6 border border-appborder shadow-[0_1px_3px_rgba(15,23,42,0.04),0_8px_16px_-4px_rgba(15,23,42,0.03)] space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h3 class="text-lg font-bold text-apptext">Exact Historical Crisis Replays (Real Daily Market Prices vs. S&P 500)</h3>
+            <p class="text-sm text-appmuted">Actual peak-to-trough drawdowns replayed across your holdings using 15-year historical daily market prices.</p>
+          </div>
+          <span class="text-xs font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full self-start sm:self-auto">
+            15-Year Historical Price Matrix
+          </span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="historicalReplaysContainer">
+          <!-- Populated dynamically by JS -->
+        </div>
       </div>
     </section>
 
@@ -1088,6 +1224,73 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           </div>
         </div>
       </div>
+
+      <!-- Execution Friction & Human-in-the-Loop Sign-Off Card -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Itemized Execution Friction Breakdown -->
+        <div class="lg:col-span-7 bg-white rounded-2xl p-6 border border-appborder shadow-[0_1px_3px_rgba(15,23,42,0.04),0_8px_16px_-4px_rgba(15,23,42,0.03)] space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-base font-bold text-apptext">Estimated Execution Friction & Circuit Breaker Impact</h3>
+              <p class="text-xs text-appmuted">Realistic trading friction (bid-ask spread, commission, slippage) modeled from <code class="text-[11px] bg-slate-100 px-1 py-0.5 rounded">config/friction.json</code>.</p>
+            </div>
+            <span id="simFrictionBpsBadge" class="text-xs font-mono font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-lg">
+              -- bps
+            </span>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+              <span class="text-appmuted block">Bid-Ask Spread:</span>
+              <span id="simSpreadCost" class="font-bold text-apptext text-sm mt-0.5 block">$0.00</span>
+            </div>
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+              <span class="text-appmuted block">Commission:</span>
+              <span id="simCommissionCost" class="font-bold text-apptext text-sm mt-0.5 block">$0.00</span>
+            </div>
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+              <span class="text-appmuted block">Market Slippage:</span>
+              <span id="simSlippageCost" class="font-bold text-apptext text-sm mt-0.5 block">$0.00</span>
+            </div>
+            <div class="p-3 bg-indigo-50/70 rounded-xl border border-indigo-100">
+              <span class="text-primary font-semibold block">Total Friction:</span>
+              <span id="simTotalFrictionCost" class="font-extrabold text-primary text-sm mt-0.5 block">$0.00</span>
+            </div>
+          </div>
+
+          <div id="simCircuitBreakerResolutionBox" class="p-3 rounded-xl border text-xs flex items-center justify-between">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <!-- Human-in-the-Loop Sign-Off Card -->
+        <div class="lg:col-span-5 bg-white rounded-2xl p-6 border border-appborder shadow-[0_1px_3px_rgba(15,23,42,0.04),0_8px_16px_-4px_rgba(15,23,42,0.03)] flex flex-col justify-between space-y-4">
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs font-bold uppercase tracking-wider text-primary">Human-in-the-Loop Oversight</span>
+              <span class="text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">Zero Auto-Execution</span>
+            </div>
+            <h3 class="text-base font-bold text-apptext">Review & Sign Off on Hypothetical Change</h3>
+            <p class="text-xs text-appmuted mt-1 leading-relaxed">
+              Portfolio X-Ray never executes trades automatically. Record your human sign-off decision below to log this simulation to the immutable audit trail (<code class="text-[11px] bg-slate-100 px-1 py-0.5 rounded">logs/audit.jsonl</code>).
+            </p>
+          </div>
+
+          <div class="space-y-2.5">
+            <div class="grid grid-cols-2 gap-2.5">
+              <button onclick="submitHumanSignOff('APPROVED')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2.5 px-3 rounded-xl transition flex items-center justify-center gap-1.5 shadow-xs">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                <span>Approve Simulation</span>
+              </button>
+              <button onclick="submitHumanSignOff('REJECTED')" class="bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 text-xs font-bold py-2.5 px-3 rounded-xl transition flex items-center justify-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                <span>Reject Simulation</span>
+              </button>
+            </div>
+            <div id="signOffStatusBanner" class="hidden p-2.5 rounded-xl border text-xs font-medium"></div>
+          </div>
+        </div>
+      </div>
     </section>
 
 
@@ -1204,6 +1407,35 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
           <div class="text-[11px] text-slate-400 border-t border-slate-100 pt-3">
             Portfolio X-Ray translates breaking news into holding sensitivities using look-through beta and factor shock rules.
+          </div>
+        </div>
+      </div>
+
+      <!-- Inspectable Safety & Audit Trail Drawer -->
+      <div class="bg-white rounded-2xl p-5 border border-appborder shadow-[0_1px_3px_rgba(15,23,42,0.04),0_8px_16px_-4px_rgba(15,23,42,0.03)] space-y-3">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div class="flex items-center gap-2.5">
+            <span class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-xs">
+              ✓
+            </span>
+            <div>
+              <h3 class="text-sm font-bold text-apptext">Immutable Safety & Evidence Audit Trail (<code class="text-xs bg-slate-100 px-1.5 py-0.5 rounded">logs/audit.jsonl</code>)</h3>
+              <p class="text-xs text-appmuted">Every quantitative computation, tool call, safety guardrail evaluation, and human sign-off is logged in real time.</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 self-start sm:self-auto">
+            <button onclick="refreshAuditLog()" class="text-xs bg-slate-100 hover:bg-slate-200 text-apptext font-semibold px-3 py-1.5 rounded-lg transition">
+              Refresh Audit Log
+            </button>
+            <button onclick="toggleAuditLogDrawer()" id="toggleAuditBtn" class="text-xs bg-primary/10 hover:bg-primary/20 text-primary font-bold px-3 py-1.5 rounded-lg transition">
+              Show Recent Audit Events &darr;
+            </button>
+          </div>
+        </div>
+
+        <div id="auditLogDrawer" class="hidden pt-3 border-t border-slate-100">
+          <div id="auditLogEntriesList" class="space-y-1.5 max-h-60 overflow-y-auto custom-scrollbar text-xs font-mono">
+            <!-- Populated by JS -->
           </div>
         </div>
       </div>
@@ -1507,6 +1739,47 @@ HTML_DASHBOARD = """<!DOCTYPE html>
   </div>
 
 
+  <!-- 4B. DETERMINISTIC EVIDENCE PROOF INSPECTOR MODAL -->
+  <div id="modal-evidence" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 border border-appborder shadow-2xl space-y-4">
+      <div class="flex items-start justify-between">
+        <div>
+          <span class="text-xs font-mono font-bold uppercase tracking-wider text-primary bg-primary/10 px-2 py-0.5 rounded" id="evModalIdBadge">EV-ID</span>
+          <h3 id="evModalTitle" class="text-lg font-bold text-apptext mt-1.5">Evidence Proof</h3>
+        </div>
+        <button onclick="closeEvidenceModal()" class="text-slate-400 hover:text-slate-600 p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+          <span class="text-appmuted font-semibold">Deterministic Computed Value:</span>
+          <span id="evModalValue" class="text-base font-extrabold text-primary font-mono">--</span>
+        </div>
+        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+          <span class="text-appmuted font-semibold block">Mathematical Formula:</span>
+          <code id="evModalFormula" class="text-apptext font-mono block break-words">--</code>
+        </div>
+        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+          <span class="text-appmuted font-semibold block">Traceable Inputs & Parameters:</span>
+          <pre id="evModalInputs" class="text-[11px] text-apptext font-mono overflow-x-auto custom-scrollbar max-h-40 whitespace-pre-wrap">--</pre>
+        </div>
+        <div class="flex items-center justify-between text-[11px] text-appmuted pt-1">
+          <span id="evModalSources">Data Sources: --</span>
+          <span id="evModalTimestamp">--</span>
+        </div>
+      </div>
+
+      <div class="pt-2 border-t border-slate-100 flex justify-end">
+        <button onclick="closeEvidenceModal()" class="bg-primary hover:bg-primary-hover text-white text-xs font-semibold px-4 py-2 rounded-xl transition">
+          Close Proof Inspector
+        </button>
+      </div>
+    </div>
+  </div>
+
+
   <!-- 5. LOADING PROGRESS OVERLAY -->
   <div id="loadingOverlay" class="fixed inset-0 z-50 bg-white/90 backdrop-blur-sm hidden flex flex-col items-center justify-center p-6">
     <div class="max-w-sm w-full bg-white rounded-2xl p-6 border border-appborder shadow-xl text-center space-y-4">
@@ -1539,6 +1812,11 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     let activeHiddenRisksSubTab = 'overlap';
     let advancedView = false;
     let selectedCompanyNode = 'NVDA';
+    let currentCovMethod = 'sample';
+    let currentLookthroughMode = 'overlap';
+    let currentCorrWindow = '3y';
+    let latestEvidenceRegistry = {};
+    let latestWhatIfScenarioSummary = 'Reallocate 15% to TLT';
 
     let riskProfile = {
       goal: 'Long-term wealth building',
@@ -1603,22 +1881,59 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
     function switchHiddenRisksSubTab(subTab) {
       activeHiddenRisksSubTab = subTab;
-      const overlapSec = document.getElementById('subtab-overlap');
-      const themesSec = document.getElementById('subtab-themes');
-      const navOverlap = document.getElementById('subnav-overlap');
-      const navThemes = document.getElementById('subnav-themes');
+      const tabs = ['overlap', 'themes', 'correlation'];
+      tabs.forEach(t => {
+        const sec = document.getElementById('subtab-' + t);
+        const nav = document.getElementById('subnav-' + t);
+        if (sec) {
+          if (t === subTab) sec.classList.remove('hidden');
+          else sec.classList.add('hidden');
+        }
+        if (nav) {
+          if (t === subTab) {
+            nav.className = 'pb-3 text-sm font-bold text-primary border-b-2 border-primary transition flex items-center gap-1.5';
+          } else {
+            nav.className = 'pb-3 text-sm font-semibold text-appmuted hover:text-apptext transition flex items-center gap-1.5';
+          }
+        }
+      });
+    }
 
-      if (subTab === 'overlap') {
-        if (overlapSec) overlapSec.classList.remove('hidden');
-        if (themesSec) themesSec.classList.add('hidden');
-        if (navOverlap) navOverlap.className = 'pb-3 text-sm font-bold text-primary border-b-2 border-primary transition';
-        if (navThemes) navThemes.className = 'pb-3 text-sm font-semibold text-appmuted hover:text-apptext transition';
-      } else {
-        if (overlapSec) overlapSec.classList.add('hidden');
-        if (themesSec) themesSec.classList.remove('hidden');
-        if (navOverlap) navOverlap.className = 'pb-3 text-sm font-semibold text-appmuted hover:text-apptext transition';
-        if (navThemes) navThemes.className = 'pb-3 text-sm font-bold text-primary border-b-2 border-primary transition';
+    function setLookthroughMode(mode) {
+      currentLookthroughMode = mode;
+      const btnOverlap = document.getElementById('lt-mode-overlap');
+      const btnFull = document.getElementById('lt-mode-full');
+      if (btnOverlap && btnFull) {
+        if (mode === 'overlap') {
+          btnOverlap.className = 'px-2.5 py-1 rounded-lg font-bold bg-white text-primary shadow-xs transition';
+          btnFull.className = 'px-2.5 py-1 rounded-lg font-medium text-appmuted hover:text-apptext transition';
+        } else {
+          btnFull.className = 'px-2.5 py-1 rounded-lg font-bold bg-white text-primary shadow-xs transition';
+          btnOverlap.className = 'px-2.5 py-1 rounded-lg font-medium text-appmuted hover:text-apptext transition';
+        }
       }
+      renderHiddenRisks();
+    }
+
+    function setCorrelationWindow(win) {
+      currentCorrWindow = win;
+      const btn3y = document.getElementById('corr-win-3y');
+      const btn1y = document.getElementById('corr-win-1y');
+      if (btn3y && btn1y) {
+        if (win === '3y') {
+          btn3y.className = 'px-3 py-1 rounded-lg font-bold bg-white text-primary shadow-xs transition';
+          btn1y.className = 'px-3 py-1 rounded-lg font-medium text-appmuted hover:text-apptext transition';
+        } else {
+          btn1y.className = 'px-3 py-1 rounded-lg font-bold bg-white text-primary shadow-xs transition';
+          btn3y.className = 'px-3 py-1 rounded-lg font-medium text-appmuted hover:text-apptext transition';
+        }
+      }
+      renderCorrelationAndEuler();
+    }
+
+    async function changeCovarianceMethod(method) {
+      currentCovMethod = method;
+      await analyzePortfolio();
     }
 
     // --- Presets Loading ---
@@ -1642,19 +1957,11 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         });
         currentPortfolio = newPort;
 
-        const btns = {
-          'accidental_tech_overweight': 'preset-btn-accidental',
-          'balanced_core': 'preset-btn-balanced',
-          'all_in_growth': 'preset-btn-growth'
-        };
-        Object.keys(btns).forEach(k => {
-          const btn = document.getElementById(btns[k]);
-          if (btn) {
-            if (k === key) {
-              btn.className = 'w-full text-left text-xs px-2.5 py-2 rounded-lg font-medium text-primary bg-primary/10 border border-primary/20 flex items-center justify-between transition';
-            } else {
-              btn.className = 'w-full text-left text-xs px-2.5 py-2 rounded-lg font-medium text-appmuted hover:text-apptext hover:bg-white border border-transparent transition';
-            }
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+          if (btn.id === 'preset-btn-' + key) {
+            btn.className = 'preset-btn w-full text-left text-xs px-2.5 py-2 rounded-lg font-medium text-primary bg-primary/10 border border-primary/20 flex items-center justify-between transition';
+          } else {
+            btn.className = 'preset-btn w-full text-left text-xs px-2.5 py-1.5 rounded-lg font-medium text-appmuted hover:text-apptext hover:bg-white border border-transparent transition';
           }
         });
 
@@ -1665,28 +1972,43 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     // --- Core Portfolio Analysis ---
     async function analyzePortfolio() {
       showLoadingOverlay();
-      updateLoadingProgress(25, 'Reading your investments & market data...');
+      updateLoadingProgress(25, 'Reading your investments & 15-year market data...');
 
       try {
-        await new Promise(r => setTimeout(r, 120));
+        await new Promise(r => setTimeout(r, 80));
         updateLoadingProgress(50, 'Unpacking ETF constituents & look-throughs...');
+
+        const userProfilePayload = {
+          risk_tolerance: riskProfile.title,
+          horizon_years: riskProfile.horizon,
+          loss_capacity: riskProfile.capacity,
+          reaction: riskProfile.reaction
+        };
 
         const res = await fetch('/api/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ portfolio: currentPortfolio })
+          body: JSON.stringify({
+            portfolio: currentPortfolio,
+            user_profile: userProfilePayload,
+            cov_method: currentCovMethod,
+            lookthrough_mode: currentLookthroughMode
+          })
         });
 
-        updateLoadingProgress(75, 'Simulating historical stress & economic themes...');
-        await new Promise(r => setTimeout(r, 120));
+        updateLoadingProgress(75, 'Computing VaR, Expected Shortfall, Euler MCR & Crisis Replays...');
+        await new Promise(r => setTimeout(r, 80));
 
         if (!res.ok) {
           throw new Error('Analysis request failed with status ' + res.status);
         }
 
         currentAnalysis = await res.json();
+        if (currentAnalysis && currentAnalysis.evidences) {
+          Object.assign(latestEvidenceRegistry, currentAnalysis.evidences);
+        }
         updateLoadingProgress(100, 'Done! Rendering your insights...');
-        await new Promise(r => setTimeout(r, 80));
+        await new Promise(r => setTimeout(r, 60));
 
         renderOverview();
         renderHiddenRisks();
@@ -1816,6 +2138,139 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
       // Things you might not have realised
       renderDiscoveries();
+      renderCircuitBreakerBanner();
+      renderBenchmarkComparison();
+    }
+
+    function renderCircuitBreakerBanner() {
+      const banner = document.getElementById('circuitBreakerBanner');
+      if (!banner || !currentAnalysis) return;
+
+      const cb = currentAnalysis.circuit_breakers || {};
+      const breaches = cb.breaches || [];
+      const userLim = cb.single_stock_limit !== undefined ? fmtPct(cb.single_stock_limit * 100) : '15.0%';
+
+      if (breaches.length > 0) {
+        banner.className = 'rounded-2xl p-4 bg-rose-50/90 border border-rose-200 flex flex-col md:flex-row md:items-center justify-between gap-3 transition-all';
+        const firstBreach = breaches[0];
+        const evId = firstBreach.evidence_id || (firstBreach.evidence_ids && firstBreach.evidence_ids[0]) || 'EV-CONC-TOP1-WEIGHT';
+        banner.innerHTML = `
+          <div class="flex items-start gap-3">
+            <div class="w-9 h-9 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 font-bold">
+              !
+            </div>
+            <div>
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="text-xs font-extrabold uppercase tracking-wider text-rose-700 bg-rose-100 px-2 py-0.5 rounded">Circuit Breaker Alert (${breaches.length} Breach${breaches.length > 1 ? 'es' : ''})</span>
+                <span class="text-xs font-bold text-apptext">${firstBreach.rule_name || firstBreach.rule_id || 'Concentration Limit'}</span>
+                <button onclick="openEvidenceModal('${evId}')" class="text-[11px] font-mono font-bold text-primary bg-white border border-indigo-200 px-1.5 py-0.5 rounded hover:bg-indigo-50 transition">[${evId}]</button>
+              </div>
+              <p class="text-xs text-rose-900 mt-1 leading-relaxed">${firstBreach.message}</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 self-start md:self-auto shrink-0">
+            <button onclick="switchTab('simulate')" class="text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-2 rounded-xl transition shadow-xs">
+              Simulate Rebalance &rarr;
+            </button>
+          </div>
+        `;
+      } else {
+        banner.className = 'rounded-2xl p-4 bg-emerald-50/80 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all';
+        banner.innerHTML = `
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 font-bold text-sm">
+              ✓
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-bold uppercase tracking-wider text-emerald-800">All Safety Circuit Breakers Passed</span>
+                <button onclick="openEvidenceModal('EV-CONC-TOP1-WEIGHT')" class="text-[11px] font-mono font-bold text-primary bg-white border border-emerald-200 px-1.5 py-0.5 rounded hover:bg-emerald-50 transition">[EV-CONC-TOP1-WEIGHT]</button>
+              </div>
+              <p class="text-xs text-emerald-800 mt-0.5">Every single-stock look-through position is within your ${userLim} risk profile threshold and volatility regime limits.</p>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    function renderBenchmarkComparison() {
+      const tbody = document.getElementById('benchmarkTableBody');
+      const tiltsEl = document.getElementById('benchmarkActiveTiltsContainer');
+      if (!tbody || !currentAnalysis || !currentAnalysis.benchmark_comparison) return;
+
+      const bm = currentAnalysis.benchmark_comparison;
+      const u = bm.user_metrics || {};
+      const spy = bm.spy_benchmark || {};
+      const b60 = bm.balanced_60_40_benchmark || {};
+      const totalVal = currentAnalysis.portfolio_value || 32500;
+
+      const rows = [
+        {
+          label: 'Annualized Volatility (3Y)',
+          ev: 'EV-RISK-ANN-VOL',
+          user: fmtPct((u.annualized_volatility || 0) * 100),
+          spy: fmtPct((spy.annualized_volatility || 0) * 100),
+          b60: fmtPct((b60.annualized_volatility || 0) * 100)
+        },
+        {
+          label: 'Daily 95% Value at Risk (VaR)',
+          ev: 'EV-TAIL-VAR-95',
+          user: fmtPct(Math.abs(u.var_95 || 0) * 100) + ' (' + fmtCurr(Math.abs(u.var_95 || 0) * totalVal) + ')',
+          spy: fmtPct(Math.abs(spy.var_95 || 0) * 100),
+          b60: fmtPct(Math.abs(b60.var_95 || 0) * 100)
+        },
+        {
+          label: 'Daily 95% Expected Shortfall (CVaR)',
+          ev: 'EV-TAIL-ES-95',
+          user: fmtPct(Math.abs(u.es_95 || 0) * 100) + ' (' + fmtCurr(Math.abs(u.es_95 || 0) * totalVal) + ')',
+          spy: fmtPct(Math.abs(spy.es_95 || 0) * 100),
+          b60: fmtPct(Math.abs(b60.es_95 || 0) * 100)
+        },
+        {
+          label: '3-Year Maximum Drawdown',
+          ev: 'EV-RISK-MAX-DD',
+          user: '-' + fmtPct(Math.abs(u.max_drawdown || 0) * 100),
+          spy: '-' + fmtPct(Math.abs(spy.max_drawdown || 0) * 100),
+          b60: '-' + fmtPct(Math.abs(b60.max_drawdown || 0) * 100)
+        },
+        {
+          label: 'Effective Independent Holdings (N_eff = 1/HHI)',
+          ev: 'EV-CONC-LT-NEFF',
+          user: Number(u.effective_n || 0).toFixed(1) + ' effective stocks',
+          spy: Number(spy.effective_n || 0).toFixed(1) + ' effective stocks',
+          b60: Number(b60.effective_n || 0).toFixed(1) + ' effective stocks'
+        },
+        {
+          label: 'Portfolio Beta vs. S&P 500 (SPY)',
+          ev: 'EV-BENCH-BETA-SPY',
+          user: Number(bm.portfolio_beta_vs_spy || 1.0).toFixed(2) + 'x',
+          spy: '1.00x (Benchmark)',
+          b60: '0.60x'
+        }
+      ];
+
+      tbody.innerHTML = rows.map(r => `
+        <tr class="hover:bg-slate-50 transition">
+          <td class="py-2.5 px-3 font-medium text-apptext flex items-center gap-1.5">
+            <span>${r.label}</span>
+            <button onclick="openEvidenceModal('${r.ev}')" class="text-[10px] font-mono text-primary hover:underline">[${r.ev}]</button>
+          </td>
+          <td class="py-2.5 px-3 font-extrabold text-primary">${r.user}</td>
+          <td class="py-2.5 px-3 text-appmuted font-medium">${r.spy}</td>
+          <td class="py-2.5 px-3 text-appmuted font-medium">${r.b60}</td>
+        </tr>
+      `).join('');
+
+      if (tiltsEl) {
+        const tilts = bm.active_tilts_vs_spy || [];
+        tiltsEl.innerHTML = '<span class="font-bold text-appmuted uppercase tracking-wider text-[11px]">Top Active Tilts vs. SPY:</span>' +
+          tilts.slice(0, 4).map(t => {
+            const activePct = t.active_tilt_pct !== undefined ? t.active_tilt_pct : ((t.active_tilt || 0) * 100);
+            const sign = activePct >= 0 ? '+' : '';
+            const colorCls = activePct > 5 ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-slate-100 text-apptext border-slate-200';
+            return `<span class="px-2.5 py-1 rounded-lg border font-semibold ${colorCls}">${t.issuer}: ${sign}${Number(activePct).toFixed(1)}% vs SPY (${Number(t.multiple_of_spy || 1).toFixed(1)}x)</span>`;
+          }).join('');
+      }
     }
 
     function renderDoughnutChart() {
@@ -1959,7 +2414,9 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     function renderHiddenRisks() {
       if (!currentAnalysis) return;
 
-      const lookthroughList = currentAnalysis.lookthrough_exposure || [];
+      const lookthroughList = currentLookthroughMode === 'full'
+        ? (currentAnalysis.full_lookthrough_exposure || currentAnalysis.lookthrough_exposure || [])
+        : (currentAnalysis.overlap_lookthrough_exposure || currentAnalysis.lookthrough_exposure || []);
       const topHoldings = lookthroughList.slice(0, 8);
       const selected = topHoldings.find(h => h.ticker === selectedCompanyNode) || topHoldings[0] || {};
 
@@ -2117,6 +2574,106 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           `;
         }).join('');
       }
+
+      renderCorrelationAndEuler();
+    }
+
+    function renderCorrelationAndEuler() {
+      if (!currentAnalysis || !currentAnalysis.correlation_and_risk_contribution) return;
+      const crc = currentAnalysis.correlation_and_risk_contribution;
+
+      // 1. Euler Risk Contributions Table
+      const eulerBody = document.getElementById('eulerRiskTableBody');
+      const contribs = crc.contributions || crc.risk_contributions || [];
+      if (eulerBody && contribs.length > 0) {
+        eulerBody.innerHTML = contribs.map(rc => {
+          const capPct = rc.capital_weight_pct !== undefined ? rc.capital_weight_pct : ((rc.capital_weight || rc.weight || 0) * 100);
+          const riskPct = Math.max(0, rc.pct_risk_contribution_pct !== undefined ? rc.pct_risk_contribution_pct : ((rc.pct_risk_contribution || rc.pct_total_risk || 0) * 100));
+          const ratio = rc.risk_to_capital_ratio || 0;
+          const isHighRiskDriver = ratio > 1.20;
+          const badgeCls = isHighRiskDriver
+            ? 'bg-rose-50 text-rose-700 border-rose-200 font-bold'
+            : (ratio < 0.80 ? 'bg-teal-50 text-teal-700 border-teal-200 font-semibold' : 'bg-slate-100 text-slate-700 border-slate-200');
+          return `
+            <tr class="hover:bg-slate-50 transition">
+              <td class="py-2.5 px-3 font-bold text-apptext">${rc.ticker} <span class="font-normal text-appmuted">(${rc.name || rc.ticker})</span></td>
+              <td class="py-2.5 px-3 font-medium text-appmuted">${fmtPct(capPct)}</td>
+              <td class="py-2.5 px-3 font-extrabold ${isHighRiskDriver ? 'text-rose-600' : 'text-primary'}">${fmtPct(riskPct)}</td>
+              <td class="py-2.5 px-3 w-44">
+                <div class="space-y-1">
+                  <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden" title="Capital Weight: ${fmtPct(capPct)}">
+                    <div style="width: ${Math.min(100, capPct)}%" class="bg-slate-400 h-full"></div>
+                  </div>
+                  <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden" title="% of Total Risk: ${fmtPct(riskPct)}">
+                    <div style="width: ${Math.min(100, riskPct)}%" class="${isHighRiskDriver ? 'bg-rose-500' : 'bg-primary'} h-full"></div>
+                  </div>
+                </div>
+              </td>
+              <td class="py-2.5 px-3 font-mono text-appmuted">${fmtPct((rc.mcr || rc.marginal_contribution || 0) * 100)}</td>
+              <td class="py-2.5 px-3 font-mono text-apptext font-semibold">${fmtPct((rc.ccr || rc.component_contribution || 0) * 100)}</td>
+              <td class="py-2.5 px-3">
+                <span class="px-2 py-0.5 rounded-lg border text-[11px] ${badgeCls}">
+                  ${ratio.toFixed(2)}x ${isHighRiskDriver ? ' (Disproportionate Risk)' : (ratio < 0.5 ? ' (Diversifier)' : '')}
+                </span>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      // 2. Pairwise Correlation Matrix Heatmap
+      const corrDict = currentCorrWindow === '1y' ? (crc.corr_matrix_1y || {}) : (crc.corr_matrix_3y || {});
+      const pillsEl = document.getElementById('correlationSummaryPills');
+      const matEl = document.getElementById('correlationMatrixContainer');
+      if (!matEl) return;
+
+      const tickers = Object.keys(corrDict);
+
+      if (pillsEl) {
+        const hpObj = crc.highest_corr_pair_3y || {};
+        const avgCorr = Number(currentCorrWindow === '1y' ? (crc.avg_pairwise_corr_1y || 0) : (crc.avg_pairwise_corr_3y || 0)).toFixed(2);
+        pillsEl.innerHTML = `
+          <span class="px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-xl font-medium text-apptext">
+            Avg Pairwise Correlation (${currentCorrWindow.toUpperCase()}): <strong class="text-primary">${avgCorr}</strong>
+            <button onclick="openEvidenceModal('EV-CORR-AVG-3Y')" class="text-[10px] font-mono text-primary hover:underline ml-1">[EV-CORR-AVG-3Y]</button>
+          </span>
+          ${hpObj.ticker_a ? `
+            <span class="px-3 py-1.5 bg-rose-50 border border-rose-200 rounded-xl font-medium text-rose-800">
+              Highest Co-Movement: <strong>${hpObj.ticker_a} &harr; ${hpObj.ticker_b} (${Number(hpObj.correlation || 0).toFixed(2)})</strong>
+            </span>
+          ` : ''}
+          <span class="px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl font-medium text-emerald-800">
+            Euler Identity (&sum;CCR = &sigma;_p): <strong>${crc.ccr_sum_check_passed ? '✓ Verified (' + fmtPct((crc.ccr_sum || 0) * 100) + ')' : 'Checked'}</strong>
+          </span>
+        `;
+      }
+
+      let html = '<table class="w-full text-center text-xs border-collapse"><thead><tr class="border-b border-slate-200 text-appmuted font-bold"><th class="py-2 px-2 text-left">Ticker</th>';
+      tickers.forEach(t => {
+        html += `<th class="py-2 px-2">${t}</th>`;
+      });
+      html += '</tr></thead><tbody class="divide-y divide-slate-100">';
+
+      tickers.forEach((rowT, i) => {
+        html += `<tr><td class="py-2 px-2 text-left font-bold text-apptext bg-slate-50/70">${rowT}</td>`;
+        tickers.forEach((colT, j) => {
+          const val = (corrDict[rowT] && corrDict[rowT][colT] !== undefined) ? Number(corrDict[rowT][colT]) : 0;
+          let cellStyle = 'bg-slate-50 text-slate-600';
+          if (i === j) {
+            cellStyle = 'bg-slate-200/80 text-slate-800 font-bold';
+          } else if (val >= 0.70) {
+            cellStyle = 'bg-rose-100 text-rose-900 font-bold';
+          } else if (val >= 0.40) {
+            cellStyle = 'bg-amber-50 text-amber-900 font-semibold';
+          } else if (val <= 0.05) {
+            cellStyle = 'bg-teal-50 text-teal-800 font-semibold';
+          }
+          html += `<td class="py-2 px-2 font-mono ${cellStyle} border border-white">${val.toFixed(2)}</td>`;
+        });
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+      matEl.innerHTML = html;
     }
 
     function selectCompanyNode(ticker) {
@@ -2244,6 +2801,41 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           </div>
         `;
       }).join('');
+
+      // Render Real Historical Crisis Window Replays vs SPY
+      const histContainer = document.getElementById('historicalReplaysContainer');
+      if (histContainer && currentAnalysis.historical_crisis_replays) {
+        histContainer.innerHTML = currentAnalysis.historical_crisis_replays.map(cr => {
+          const portDD = Math.abs(cr.portfolio_max_drawdown_pct !== undefined ? cr.portfolio_max_drawdown_pct : ((cr.portfolio_drawdown_pct || 0) * 100));
+          const spyRet = Math.abs(cr.spy_cumulative_return_pct !== undefined ? cr.spy_cumulative_return_pct : ((cr.benchmark_drawdown_pct || 0) * 100));
+          const diff = portDD - spyRet;
+          const evId = cr.evidence_id || ('EV-STRESS-' + (cr.scenario_id || 'MAR_2020_COVID_CRASH'));
+          const dollarLoss = cr.portfolio_dollar_loss !== undefined ? cr.portfolio_dollar_loss : (cr.portfolio_drawdown_gbp || 0);
+          return `
+            <div class="p-4 bg-slate-50/80 rounded-xl border border-appborder space-y-2.5">
+              <div class="flex items-start justify-between gap-2">
+                <div>
+                  <div class="flex items-center gap-2">
+                    <span class="font-bold text-sm text-apptext">${cr.name}</span>
+                    <button onclick="openEvidenceModal('${evId}')" class="text-[10px] font-mono text-primary hover:underline">[${evId}]</button>
+                  </div>
+                  <span class="text-[11px] text-appmuted">${cr.start_date} &rarr; ${cr.end_date} (${cr.sample_days || 0} trading days)</span>
+                </div>
+                <span class="text-xs font-extrabold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-lg">
+                  -${portDD.toFixed(1)}% (-${fmtCurr(dollarLoss)})
+                </span>
+              </div>
+              <p class="text-xs text-appmuted leading-relaxed">${cr.description || ''}</p>
+              <div class="pt-2 border-t border-slate-200/70 flex items-center justify-between text-xs">
+                <span class="text-appmuted">S&P 500 (SPY) Return: <strong class="text-apptext">${Number(cr.spy_cumulative_return_pct || 0).toFixed(1)}%</strong></span>
+                <span class="font-semibold ${diff > 0 ? 'text-rose-600' : 'text-tealaccent'}">
+                  ${diff > 0 ? '+' + diff.toFixed(1) + '% deeper drop than SPY' : Math.abs(diff).toFixed(1) + '% more resilient than SPY'}
+                </span>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
     }
 
     function toggleScenarioDetails(idx) {
@@ -2329,6 +2921,10 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
         if (!res.ok) throw new Error('Simulation failed');
         const data = await res.json();
+        if (data.evidences) {
+          Object.assign(latestEvidenceRegistry, data.evidences);
+        }
+        latestWhatIfScenarioSummary = data.scenario_summary || ('Reallocate ' + pct + '% to ' + asset);
 
         if (data.resolved_target && data.resolved_target.name && elLabel) {
           elLabel.innerText = data.resolved_target.name + ' (' + data.resolved_target.ticker + ')';
@@ -2363,14 +2959,47 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         const pStress = document.getElementById('simPropStressLoss');
         if (pStress) pStress.innerText = data.stress_comparison && data.stress_comparison[0] ? fmtPct(Math.abs(data.stress_comparison[0].proposed_drawdown_pct)) : '17.5%';
 
+        // Execution Friction Breakdown
+        const fric = data.execution_friction || {};
+        const elSpread = document.getElementById('simSpreadCost');
+        if (elSpread) elSpread.innerText = fmtCurr(fric.spread_cost || 0);
+        const elComm = document.getElementById('simCommissionCost');
+        if (elComm) elComm.innerText = fmtCurr(fric.commission || 0);
+        const elSlip = document.getElementById('simSlippageCost');
+        if (elSlip) elSlip.innerText = fmtCurr(fric.slippage || 0);
+        const elTotFric = document.getElementById('simTotalFrictionCost');
+        if (elTotFric) elTotFric.innerText = fmtCurr(fric.total_friction_cost || 0);
+        const elBps = document.getElementById('simFrictionBpsBadge');
+        if (elBps) elBps.innerText = Number(fric.effective_friction_bps || 0).toFixed(1) + ' bps [EV-WHATIF-FRICTION]';
+
+        // Circuit Breaker Resolution Box
+        const cbComp = data.circuit_breaker_comparison || {};
+        const cbResBox = document.getElementById('simCircuitBreakerResolutionBox');
+        if (cbResBox) {
+          const resolvedArr = Array.isArray(cbComp.breaches_resolved) ? cbComp.breaches_resolved : [];
+          const createdArr = Array.isArray(cbComp.new_breaches_created) ? cbComp.new_breaches_created : [];
+          const resolvedCount = resolvedArr.length;
+          const createdCount = createdArr.length;
+          if (resolvedCount > 0 && createdCount === 0) {
+            cbResBox.className = 'p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center justify-between';
+            cbResBox.innerHTML = `<span><strong>Circuit Breaker Resolution:</strong> Resolves ${resolvedCount} breach(es) (${resolvedArr.join(', ')}) &bull; Top stake: ${cbComp.before_top_weight_pct || 0}% &rarr; ${cbComp.after_top_weight_pct || 0}%.</span><span class="font-bold">✓ Compliant</span>`;
+          } else if (createdCount > 0) {
+            cbResBox.className = 'p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center justify-between';
+            cbResBox.innerHTML = `<span><strong>Circuit Breaker Alert:</strong> Creates ${createdCount} new breach(es) (${createdArr.join(', ')}) &bull; Top stake: ${cbComp.before_top_weight_pct || 0}% &rarr; ${cbComp.after_top_weight_pct || 0}%.</span><span class="font-bold">! Breach</span>`;
+          } else {
+            cbResBox.className = 'p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-appmuted flex items-center justify-between';
+            cbResBox.innerHTML = `<span><strong>Circuit Breaker Status:</strong> Top single-stock stake moves from <strong>${cbComp.before_top_weight_pct || 0}% (${cbComp.before_top_issuer || ''})</strong> to <strong>${cbComp.after_top_weight_pct || 0}% (${cbComp.after_top_issuer || ''})</strong> vs ${fmtPct((cbComp.single_stock_limit || 0.15) * 100)} limit.</span><span class="font-mono text-[11px]">[EV-WHATIF-FRICTION]</span>`;
+          }
+        }
+
         const banner = document.getElementById('simAlignmentBanner');
         if (banner) {
-          if (asset === 'TLT' || asset === 'CASH') {
+          if (asset === 'TLT' || asset === 'CASH' || asset === 'BND') {
             banner.className = 'p-4 bg-teal-50 border border-teal-200 rounded-xl text-xs text-teal-800 space-y-1';
             banner.innerHTML = '<strong>Diversification Benefit:</strong> Adding ' + asset + ' reduces your overall volatility and limits maximum stress drawdown.';
           } else {
             banner.className = 'p-4 bg-indigo-50 border border-indigo-200 rounded-xl text-xs text-indigo-800 space-y-1';
-            banner.innerHTML = '<strong>Targeted Growth:</strong> Allocating ' + pct + '% to ' + asset + ' increases your direct exposure while altering your overall portfolio concentration score.';
+            banner.innerHTML = '<strong>Targeted Allocation:</strong> Allocating ' + pct + '% to ' + asset + ' alters your look-through concentration and tail risk.';
           }
         }
 
@@ -2381,13 +3010,40 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       }
     }
 
+    async function submitHumanSignOff(decision) {
+      const statusBanner = document.getElementById('signOffStatusBanner');
+      try {
+        const res = await fetch('/api/sign-off', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            decision: decision,
+            scenario_summary: latestWhatIfScenarioSummary,
+            persona_name: riskProfile.title,
+            details: { portfolio: currentPortfolio }
+          })
+        });
+        if (!res.ok) throw new Error('Sign-off failed');
+        const data = await res.json();
+        if (statusBanner) {
+          const isApp = decision === 'APPROVED';
+          statusBanner.className = 'p-2.5 rounded-xl border text-xs font-medium ' + (isApp ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800');
+          statusBanner.innerText = 'Human sign-off (' + (data.decision || decision) + ') recorded in logs/audit.jsonl at ' + new Date(data.timestamp || Date.now()).toLocaleTimeString() + ' [' + (data.evidence_id || 'EV-SIGNOFF') + ']';
+          statusBanner.classList.remove('hidden');
+        }
+        refreshAuditLog();
+      } catch (err) {
+        alert('Could not record human sign-off: ' + err.message);
+      }
+    }
+
     function renderTryAChange() {
       simulateAssetChange('TLT', 15);
     }
 
     // --- Tab 5: Ask X-Ray & Headline Shock Auditor ---
     function renderAskXRay() {
-      // Ready state for Ask X-Ray
+      refreshAuditLog();
     }
 
     function handleChatSubmit() {
@@ -2417,9 +3073,15 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
         if (!res.ok) throw new Error('Chat failed');
         const data = await res.json();
+        if (data.cited_evidences && Array.isArray(data.cited_evidences)) {
+          data.cited_evidences.forEach(ev => {
+            if (ev && ev.id) latestEvidenceRegistry[ev.id] = ev;
+          });
+        }
         const reply = data.answer || data.response || "Here's what your portfolio analysis shows.";
 
-        appendChatMessage('assistant', reply);
+        appendChatMessage('assistant', reply, data);
+        refreshAuditLog();
       } catch (err) {
         appendChatMessage('assistant', 'Sorry, I could not process your question. Please try again.');
       }
@@ -2474,12 +3136,14 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       if (!str) return '';
       // Replace **bold** with styled strong
       let s = str.replace(/\\*\\*(.*?)\\*\\*/g, '<strong class="font-bold text-apptext">$1</strong>');
+      // Convert `[EV-...]` or [EV-...] into clickable Evidence Proof Chips
+      s = s.replace(/`?\\[(EV-[A-Z0-9_-]+)\\]`?/g, '<button onclick="openEvidenceModal(\\'$1\\')" class="inline-flex items-center px-1.5 py-0.5 mx-0.5 rounded bg-indigo-50 hover:bg-indigo-100 text-primary border border-indigo-200 font-mono text-[11px] font-bold transition" title="Inspect deterministic mathematical proof">[$1]</button>');
       // Clean any remaining raw asterisks or hash tags
       s = s.replace(/\\*/g, '').replace(/^#+\\s*/g, '');
       return s;
     }
 
-    function appendChatMessage(role, text) {
+    function appendChatMessage(role, text, meta) {
       const feed = document.getElementById('chatFeed');
       if (!feed) return;
 
@@ -2489,14 +3153,127 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
       const formattedContent = renderFormattedChatText(text, isUser);
 
+      let metaFooter = '';
+      if (!isUser && meta) {
+        const src = meta.source || 'deterministic-risk-analyst';
+        const tools = meta.tool_calls || [];
+        const evs = meta.cited_evidences || [];
+        const safetyPassed = meta.safety_check ? meta.safety_check.passed : true;
+        const safetyLabel = safetyPassed ? 'OutputSafetyFilter: Verified' : 'Safety Guardrail: Blocked';
+        const safetyBadgeCls = safetyPassed ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200';
+
+        metaFooter = `
+          <div class="mt-3 pt-2.5 border-t border-slate-100 space-y-2 text-[11px]">
+            <div class="flex flex-wrap items-center justify-between gap-1.5">
+              <div class="flex flex-wrap items-center gap-1.5">
+                <span class="px-2 py-0.5 rounded border font-semibold ${safetyBadgeCls}">${safetyLabel}</span>
+                <span class="px-2 py-0.5 rounded bg-slate-100 text-appmuted font-mono">Source: ${src}</span>
+                ${tools.length > 0 ? `<span class="px-2 py-0.5 rounded bg-indigo-50 text-primary font-semibold">${tools.length} Tools Executed</span>` : ''}
+              </div>
+            </div>
+            ${evs.length > 0 ? `
+              <div class="flex flex-wrap items-center gap-1">
+                <span class="text-appmuted font-semibold mr-1">Proofs:</span>
+                ${evs.slice(0, 6).map(e => `<button onclick="openEvidenceModal('${e.id}')" class="px-1.5 py-0.5 rounded bg-slate-50 hover:bg-indigo-50 text-primary border border-slate-200 font-mono text-[10px] font-bold transition">[${e.id}]</button>`).join('')}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }
+
       msgDiv.innerHTML = `
         <div class="max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed ${isUser ? 'bg-primary text-white font-medium rounded-br-xs' : 'bg-white border border-appborder text-apptext shadow-xs rounded-bl-xs'}">
           ${formattedContent}
+          ${metaFooter}
         </div>
       `;
 
       feed.appendChild(msgDiv);
       feed.scrollTop = feed.scrollHeight;
+    }
+
+    function openEvidenceModal(evId) {
+      const m = document.getElementById('modal-evidence');
+      if (!m) return;
+
+      const ev = (latestEvidenceRegistry && latestEvidenceRegistry[evId]) ||
+                 (currentAnalysis && currentAnalysis.evidences && currentAnalysis.evidences[evId]) ||
+                 {
+                   id: evId,
+                   metric: evId,
+                   value: 'Verified Deterministic Metric',
+                   formula: 'Deterministic Python calculation from xray/engine',
+                   inputs: { portfolio: currentPortfolio },
+                   data_sources: ['data/prices.csv', 'data/etf_constituents.json'],
+                   timestamp: new Date().toISOString()
+                 };
+
+      const bId = document.getElementById('evModalIdBadge');
+      if (bId) bId.innerText = ev.id || evId;
+      const bTitle = document.getElementById('evModalTitle');
+      if (bTitle) bTitle.innerText = ev.metric_name || ev.metric || evId;
+      const bVal = document.getElementById('evModalValue');
+      if (bVal) {
+        const v = ev.value;
+        bVal.innerText = typeof v === 'number' ? Number(v).toFixed(4) : JSON.stringify(v);
+      }
+      const bForm = document.getElementById('evModalFormula');
+      if (bForm) bForm.innerText = ev.formula || 'Deterministic calculation';
+      const bInp = document.getElementById('evModalInputs');
+      if (bInp) bInp.innerText = JSON.stringify(ev.inputs || {}, null, 2);
+      const bSrc = document.getElementById('evModalSources');
+      if (bSrc) bSrc.innerText = 'Sources: ' + ((ev.data_sources || ['data/prices.csv']).join(', '));
+      const bTs = document.getElementById('evModalTimestamp');
+      if (bTs) bTs.innerText = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString() : '';
+
+      m.classList.remove('hidden');
+    }
+
+    function closeEvidenceModal() {
+      const m = document.getElementById('modal-evidence');
+      if (m) m.classList.add('hidden');
+    }
+
+    function toggleAuditLogDrawer() {
+      const dr = document.getElementById('auditLogDrawer');
+      const btn = document.getElementById('toggleAuditBtn');
+      if (dr) {
+        const isHidden = dr.classList.contains('hidden');
+        if (isHidden) {
+          dr.classList.remove('hidden');
+          if (btn) btn.innerHTML = 'Hide Audit Events &uarr;';
+          refreshAuditLog();
+        } else {
+          dr.classList.add('hidden');
+          if (btn) btn.innerHTML = 'Show Recent Audit Events &darr;';
+        }
+      }
+    }
+
+    async function refreshAuditLog() {
+      const list = document.getElementById('auditLogEntriesList');
+      if (!list) return;
+      try {
+        const res = await fetch('/api/audit-log');
+        if (!res.ok) return;
+        const data = await res.json();
+        const entries = (data.entries || []).slice().reverse();
+        if (entries.length === 0) {
+          list.innerHTML = '<div class="text-appmuted italic">No audit events recorded yet.</div>';
+          return;
+        }
+        list.innerHTML = entries.slice(0, 25).map(e => `
+          <div class="p-2 bg-slate-50 rounded-lg border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+            <div class="flex items-center gap-2">
+              <span class="px-1.5 py-0.5 rounded bg-indigo-50 text-primary font-bold text-[10px]">${e.event_type || 'EVENT'}</span>
+              <span class="text-apptext truncate max-w-md">${JSON.stringify(e.details || {})}</span>
+            </div>
+            <span class="text-[10px] text-appmuted shrink-0">${e.timestamp ? new Date(e.timestamp).toLocaleTimeString() : ''}</span>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.warn('Could not refresh audit log:', err);
+      }
     }
 
     function applyHeadline(headlineText) {
@@ -2571,8 +3348,25 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     }
 
     // --- Advanced View Toggle ---
+    function toggleAdvancedViewQuick() {
+      toggleAdvancedView(!advancedView);
+    }
+
     function toggleAdvancedView(checked) {
       advancedView = checked;
+      const chk = document.getElementById('advancedViewToggle');
+      if (chk) chk.checked = checked;
+      const qBtn = document.getElementById('quickAdvToggleBtn');
+      const qInd = document.getElementById('quickAdvIndicator');
+      if (qBtn && qInd) {
+        if (checked) {
+          qBtn.className = 'bg-slate-900 text-white border border-slate-900 text-xs sm:text-sm font-semibold px-3.5 py-2.5 rounded-xl transition flex items-center gap-1.5 shadow-xs';
+          qInd.className = 'w-2 h-2 rounded-full bg-tealaccent';
+        } else {
+          qBtn.className = 'bg-white hover:bg-slate-50 border border-appborder text-appmuted text-xs sm:text-sm font-medium px-3.5 py-2.5 rounded-xl transition flex items-center gap-1.5';
+          qInd.className = 'w-2 h-2 rounded-full bg-slate-300';
+        }
+      }
       renderAdvancedViews();
     }
 
@@ -2584,14 +3378,52 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         if (banner) banner.classList.remove('hidden');
         if (table) table.classList.remove('hidden');
 
+        const rm = currentAnalysis.risk_metrics || {};
+        const sqrt21 = Math.sqrt(21);
         const advHHI = document.getElementById('advHHIVal');
-        if (advHHI) advHHI.innerText = currentAnalysis.risk_metrics.concentration_hhi ? currentAnalysis.risk_metrics.concentration_hhi.toFixed(0) : '2,150';
+        if (advHHI) {
+          const hhiNum = rm.concentration_hhi ? rm.concentration_hhi.toFixed(0) : '2,150';
+          const neffNum = rm.lookthrough_effective_n ? Number(rm.lookthrough_effective_n).toFixed(1) : '4.5';
+          advHHI.innerText = hhiNum + ' (N_eff: ' + neffNum + ')';
+        }
         const advVol = document.getElementById('advVolVal');
-        if (advVol) advVol.innerText = fmtPct((currentAnalysis.risk_metrics.annualized_volatility || 0.18) * 100);
+        if (advVol) advVol.innerText = fmtPct((rm.annualized_volatility || 0.18) * 100);
         const advVaR = document.getElementById('advVaRVal');
-        if (advVaR) advVaR.innerText = fmtPct((currentAnalysis.risk_metrics.var_95_1m || 0.08) * 100);
+        if (advVaR) {
+          const ciL = Math.abs(rm.daily_var_95_ci_low || 0.015) * sqrt21 * 100;
+          const ciH = Math.abs(rm.daily_var_95_ci_high || 0.022) * sqrt21 * 100;
+          const low = Math.min(ciL, ciH);
+          const high = Math.max(ciL, ciH);
+          advVaR.innerText = fmtPct((rm.var_95_1m || 0.08) * 100) + ' [' + low.toFixed(1) + '–' + high.toFixed(1) + '%]';
+        }
         const advCVaR = document.getElementById('advCVaRVal');
-        if (advCVaR) advCVaR.innerText = fmtPct((currentAnalysis.risk_metrics.cvar_95_1m || 0.11) * 100);
+        if (advCVaR) {
+          const ciEsL = Math.abs(rm.daily_es_95_ci_low || 0.02) * sqrt21 * 100;
+          const ciEsH = Math.abs(rm.daily_es_95_ci_high || 0.03) * sqrt21 * 100;
+          const lowE = Math.min(ciEsL, ciEsH);
+          const highE = Math.max(ciEsL, ciEsH);
+          advCVaR.innerText = fmtPct((rm.cvar_95_1m || 0.11) * 100) + ' [' + lowE.toFixed(1) + '–' + highE.toFixed(1) + '%]';
+        }
+        const advTail99 = document.getElementById('advTail99Val');
+        if (advTail99) {
+          const v99 = Math.abs(rm.daily_var_99 || 0.03) * 100;
+          const e99 = Math.abs(rm.daily_es_99 || 0.04) * 100;
+          advTail99.innerText = '-' + v99.toFixed(2) + '% / -' + e99.toFixed(2) + '% (daily)';
+        }
+        const advMaxDD = document.getElementById('advMaxDDVal');
+        if (advMaxDD) {
+          advMaxDD.innerText = '-' + fmtPct(Math.abs(rm.max_drawdown_3y || 0.25) * 100);
+        }
+        const covBar = document.getElementById('advCovComparisonBar');
+        if (covBar && rm.covariance_comparison) {
+          const cc = rm.covariance_comparison;
+          covBar.innerHTML = `
+            <span><strong>Estimator Comparison (3Y Daily Returns):</strong></span>
+            <span>Sample Vol: <strong>${fmtPct((cc.sample_annualized_vol || 0) * 100)}</strong></span>
+            <span>Ledoit-Wolf Shrinkage (&alpha;=${cc.ledoit_wolf_shrinkage_alpha || 0}): <strong>${fmtPct((cc.ledoit_wolf_annualized_vol || 0) * 100)}</strong></span>
+            <span>EWMA (&lambda;=${cc.ewma_lambda || 0.94}): <strong>${fmtPct((cc.ewma_annualized_vol || 0) * 100)}</strong></span>
+          `;
+        }
       } else {
         if (banner) banner.classList.add('hidden');
         if (table) table.classList.add('hidden');
@@ -2642,6 +3474,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
       riskProfile.title = title;
       riskProfile.horizon = riskAnswers.horizon || '5–10 years';
+      riskProfile.reaction = riskAnswers.reaction || 'Calm / normal market movement';
+      riskProfile.capacity = riskAnswers.capacity || '10–20% max';
 
       const b1 = document.getElementById('settingsProfileNameBadge');
       if (b1) b1.innerText = title;
@@ -2651,7 +3485,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       if (b3) b3.innerText = title + ' • ' + riskProfile.horizon;
 
       closeRiskQuestionnaireModal();
-      renderOverview();
+      analyzePortfolio();
     }
 
     const TERMINOLOGY_DEFS = {

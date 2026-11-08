@@ -107,6 +107,31 @@ ETF_LOOKTHROUGH: Dict[str, Dict[str, float]] = {
     "GLD": {
         "PHYSICAL_GOLD": 1.0,
     },
+    "VTI": {
+        "MSFT": 0.0618,
+        "AAPL": 0.0592,
+        "NVDA": 0.0565,
+        "AMZN": 0.0315,
+        "META": 0.0218,
+        "GOOGL": 0.0184,
+        "BRK.B": 0.0152,
+        "AVGO": 0.0146,
+        "JPM": 0.0118,
+        "TSLA": 0.0115,
+        "_OTHER_VTI": 0.6977,
+    },
+    "ARKK": {
+        "TSLA": 0.112,
+        "ROKU": 0.085,
+        "COIN": 0.0815,
+        "PATH": 0.068,
+        "SQ": 0.062,
+        "CRSP": 0.0495,
+        "HOOD": 0.046,
+        "SHOP": 0.042,
+        "DKNG": 0.039,
+        "_OTHER_ARKK": 0.415,
+    },
 }
 
 # Asset Master Catalog: Sector, Asset Class, Annualized Volatility, and Thematic Exposures
@@ -516,6 +541,42 @@ ASSET_METADATA: Dict[str, Dict[str, Any]] = {
         "themes": ["Capital Preservation", "Liquidity"],
         "rate_sensitivity": 0.10,
     },
+    "CASH_GBP": {
+        "name": "Sterling Cash / Money Market",
+        "asset_class": "Cash",
+        "sector": "Cash Equivalents",
+        "industry": "Cash",
+        "annual_volatility": 0.005,
+        "themes": ["Capital Preservation", "Liquidity"],
+        "rate_sensitivity": 0.10,
+    },
+    "VST": {
+        "name": "Vistra Corp. (Power & Nuclear Generation)",
+        "asset_class": "Equity",
+        "sector": "Utilities / Power",
+        "industry": "Independent Power & AI Data Center Energy",
+        "annual_volatility": 0.38,
+        "themes": ["AI Infrastructure & Capex", "Nuclear Energy & Power Demand", "Energy & Commodities"],
+        "rate_sensitivity": -0.35,
+    },
+    "ARKK": {
+        "name": "ARK Innovation ETF",
+        "asset_class": "ETF / Index",
+        "sector": "Disruptive Technology",
+        "industry": "Speculative Growth & Innovation ETF",
+        "annual_volatility": 0.44,
+        "themes": ["High Growth Tech", "Generative AI", "Interest Rate Duration", "Fintech Speculation"],
+        "rate_sensitivity": -1.40,
+    },
+    "OTHER_CONSTITUENTS": {
+        "name": "Diversified ETF Residual Constituents Basket",
+        "asset_class": "Equity",
+        "sector": "Diversified Index Blend",
+        "industry": "Non-Top ETF Constituents",
+        "annual_volatility": 0.16,
+        "themes": ["Broad Market Exposure"],
+        "rate_sensitivity": -0.25,
+    },
 }
 
 # Fallback generator for unknown stocks or diversified ETF baskets
@@ -906,6 +967,71 @@ SAMPLE_PORTFOLIOS = {
             {"ticker": "CEG", "shares": 20, "price": 245.0},      # $4,900 (19.6%)
         ],
     },
+    "case_01_diversification_illusion": {
+        "case_id": "CASE-01-DIVERSIFICATION-ILLUSION",
+        "name": "Case 1: Hidden Tech Overlap Trap (Liam)",
+        "description": "Liam, saving £60,000 for a house deposit over 3 years; holds NVDA (25%), QQQ (35%), SMH (25%), SPY (15%) believing 4 tickers are safe.",
+        "user_profile": {
+            "risk_tolerance": "Moderate",
+            "horizon_years": 3,
+            "loss_capacity": "Moderate (Max 20% single-stock limit)",
+            "max_single_stock_limit": 0.20,
+        },
+        "holdings": [
+            {"ticker": "NVDA", "shares": 96.1538, "price": 130.0},  # 25% ($12,500)
+            {"ticker": "QQQ", "shares": 36.4583, "price": 480.0},   # 35% ($17,500)
+            {"ticker": "SMH", "shares": 50.0, "price": 250.0},      # 25% ($12,500)
+            {"ticker": "SPY", "shares": 13.6364, "price": 550.0},   # 15% ($7,500)
+        ],
+    },
+    "case_02_ai_capex_energy_theme": {
+        "case_id": "CASE-02-AI-CAPEX-ENERGY-THEME",
+        "name": "Case 2: AI Capex & Power Theme Trap (Sarah)",
+        "description": "Sarah split £60,000 equally across Tech, Cloud, Utilities (VST), and Semiconductors (25% each), unaware 92.04% depends on AI Data Center Capex.",
+        "user_profile": {
+            "risk_tolerance": "Moderate",
+            "horizon_years": 5,
+            "loss_capacity": "Moderate (Max 25% single-stock limit)",
+            "max_single_stock_limit": 0.25,
+        },
+        "holdings": [
+            {"ticker": "NVDA", "shares": 115.3846, "price": 130.0}, # 25% ($15,000)
+            {"ticker": "MSFT", "shares": 35.7143, "price": 420.0},  # 25% ($15,000)
+            {"ticker": "VST", "shares": 125.0, "price": 120.0},     # 25% ($15,000)
+            {"ticker": "SMH", "shares": 60.0, "price": 250.0},      # 25% ($15,000)
+        ],
+    },
+    "case_03_rate_shock_duration_trap": {
+        "case_id": "CASE-03-RATE-SHOCK-DURATION-TRAP",
+        "name": "Case 3: Rate Shock & Duration Trap (David)",
+        "description": "David paired 50% ARKK speculative tech with 50% TLT 20+ Year Treasuries, unaware both collapse simultaneously in a 2022-style rate hike.",
+        "user_profile": {
+            "risk_tolerance": "Moderate",
+            "horizon_years": 5,
+            "loss_capacity": "Moderate (Max 25% single-stock limit)",
+            "max_single_stock_limit": 0.25,
+        },
+        "holdings": [
+            {"ticker": "ARKK", "shares": 500.0, "price": 50.0},     # 50% ($25,000)
+            {"ticker": "TLT", "shares": 263.1579, "price": 95.0},   # 50% ($25,000)
+        ],
+    },
+    "case_04_passive_diversified_benchmark": {
+        "case_id": "CASE-04-PASSIVE-DIVERSIFIED-BENCHMARK",
+        "name": "Case 4: Clean Passive Diversified Baseline",
+        "description": "Boglehead passive allocation: 60% VTI Total Stock Market, 20% SPY S&P 500, and 20% Cash buffer (max single stock MSFT at 5.13% < 10% limit).",
+        "user_profile": {
+            "risk_tolerance": "Conservative",
+            "horizon_years": 7,
+            "loss_capacity": "Conservative (Max 10% single-stock limit)",
+            "max_single_stock_limit": 0.10,
+        },
+        "holdings": [
+            {"ticker": "VTI", "shares": 111.1111, "price": 270.0},  # 60% ($30,000)
+            {"ticker": "SPY", "shares": 18.1818, "price": 550.0},   # 20% ($10,000)
+            {"ticker": "CASH", "shares": 10000.0, "price": 1.0},    # 20% ($10,000)
+        ],
+    },
 }
 
 COMPANY_SYNONYMS: Dict[str, str] = {
@@ -947,5 +1073,6 @@ COMPANY_SYNONYMS: Dict[str, str] = {
     "exxon": "XOM", "xom": "XOM", "exxonmobil": "XOM",
     "tsmc": "TSM", "tsm": "TSM", "taiwan semi": "TSM",
     "asml": "ASML",
+    "vistra": "VST", "vst": "VST", "arkk": "ARKK", "ark innovation": "ARKK", "cash_gbp": "CASH_GBP",
 }
 
