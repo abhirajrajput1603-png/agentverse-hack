@@ -13,6 +13,7 @@ import urllib.parse
 from http import HTTPStatus
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import sys
+import time
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
@@ -31,6 +32,10 @@ try:
         run_stress_tests,
         simulate_what_if,
         analyze_headline_event,
+        get_institutional_lookthrough,
+        get_correlation_and_risk,
+        get_historical_stress,
+        get_benchmark_comparison,
     )
     from agent import ask_risk_analyst
 except ImportError:
@@ -44,6 +49,10 @@ except ImportError:
         run_stress_tests,
         simulate_what_if,
         analyze_headline_event,
+        get_institutional_lookthrough,
+        get_correlation_and_risk,
+        get_historical_stress,
+        get_benchmark_comparison,
     )
     from portfolio_xray.agent import ask_risk_analyst
 
@@ -383,8 +392,36 @@ class PortfolioXRayHandler(BaseHTTPRequestHandler):
             self._set_headers("application/json", len(encoded))
             self.wfile.write(encoded)
 
+        elif parsed.path == "/api/sign-off":
+            decision = data.get("decision", "rejected")
+            target = data.get("target", {})
+            from pathlib import Path
+            log_dir = Path("logs")
+            log_dir.mkdir(exist_ok=True)
+            with open(log_dir / "audit.jsonl", "a") as f:
+                f.write(json.dumps({"timestamp": time.time(), "event": "human_sign_off", "decision": decision, "target": target}) + "\n")
+            
+            encoded = json.dumps({"status": "recorded"}).encode("utf-8")
+            self._set_headers("application/json", len(encoded))
+            self.wfile.write(encoded)
+            
+        elif parsed.path == "/api/audit-log":
+            from pathlib import Path
+            log_file = Path("logs/audit.jsonl")
+            logs = []
+            if log_file.exists():
+                with open(log_file, "r") as f:
+                    for line in f:
+                        if line.strip():
+                            logs.append(json.loads(line))
+            encoded = json.dumps({"logs": logs}).encode("utf-8")
+            self._set_headers("application/json", len(encoded))
+            self.wfile.write(encoded)
+
         else:
             self.send_error(HTTPStatus.NOT_FOUND, "API route not found")
+
+
 
 
 HTML_DASHBOARD = """<!DOCTYPE html>
@@ -3732,7 +3769,141 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     window.addEventListener('DOMContentLoaded', () => {
       initApp();
     });
-  </script>
+  
+async function loadPresets() {
+  try {
+    const res = await fetch('/api/presets');
+    const data = await res.json();
+    let selector = document.getElementById('preset-selector');
+    if (!selector) {
+      // Create selector if it doesn't exist
+      selector = document.createElement('select');
+      selector.id = 'preset-selector';
+      selector.className = 'w-full p-2 border border-appborder rounded bg-white text-sm mt-4';
+      selector.innerHTML = '<option value="">-- Select Preset Portfolio --</option>';
+      const sb = document.querySelector('.sidebar-content') || document.querySelector('aside');
+      if (sb) sb.appendChild(selector);
+      
+      selector.addEventListener('change', (e) => {
+        if (!e.target.value) return;
+        const preset = data[e.target.value];
+        if (preset) {
+           let text = preset.holdings.map(h => `${h.shares} ${h.ticker}`).join('\n');
+           document.getElementById('manual-input').value = text;
+           analyzePortfolio();
+        }
+      });
+    }
+    
+    // Add default presets
+    for (const [key, p] of Object.entries(data)) {
+        if (!selector.querySelector(`option[value="${key}"]`)) {
+            const opt = document.createElement('option');
+            opt.value = key;
+            opt.textContent = p.name || key;
+            selector.appendChild(opt);
+        }
+    }
+  } catch (err) {
+    console.error('Failed to load presets', err);
+  }
+}
+// Call loadPresets on load
+document.addEventListener('DOMContentLoaded', loadPresets);
+
+
+function updateInstitutionalUI(data) {
+  // Circuit Breakers
+  const cbBanner = document.getElementById('cb-banner');
+  const cbList = document.getElementById('cb-list');
+  if (data.metrics && data.metrics.circuit_breakers && data.metrics.circuit_breakers.current_breaches && data.metrics.circuit_breakers.current_breaches.length > 0) {
+    cbList.innerHTML = data.metrics.circuit_breakers.current_breaches.map(b => `<li>${b}</li>`).join('');
+    cbBanner.classList.remove('hidden');
+  } else {
+    cbBanner.classList.add('hidden');
+  }
+  
+  // Benchmark
+  const bCard = document.getElementById('benchmark-card');
+  const bContent = document.getElementById('benchmark-content');
+  if (data.benchmark && data.benchmark.spy_comparison) {
+    const b = data.benchmark;
+    bContent.innerHTML = `
+      <div>
+        <p class="text-gray-500 font-semibold mb-2">Vs. SPY (100% Equity)</p>
+        <p><strong>Beta:</strong> ${b.portfolio_beta}</p>
+        <p><strong>Active Risk:</strong> ${b.active_risk}%</p>
+        <p><strong>SPY Volatility:</strong> ${b.spy_comparison.volatility}%</p>
+      </div>
+      <div>
+        <p class="text-gray-500 font-semibold mb-2">Vs. 60/40 (SPY/BND)</p>
+        <p><strong>60/40 Volatility:</strong> ${b.bnd_6040_comparison.volatility}%</p>
+        <p><strong>60/40 Max Drawdown:</strong> ${b.bnd_6040_comparison.max_drawdown}%</p>
+      </div>
+    `;
+    bCard.classList.remove('hidden');
+  }
+  
+  // Heatmap & Euler Risk (Tab 2)
+  if (data.correlation_and_risk && data.correlation_and_risk.risk_contributions) {
+     let tab2 = document.getElementById('tab-overlap');
+     if (tab2 && !document.getElementById('euler-risk')) {
+         const div = document.createElement('div');
+         div.id = 'euler-risk';
+         div.className = 'mt-6 p-5 bg-white border border-appborder rounded-xl shadow-sm';
+         div.innerHTML = `<h3 class="text-lg font-semibold text-apptext mb-3">Euler Risk Contribution</h3>
+            <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-sm">
+              <thead><tr class="border-b"><th class="py-2">Asset</th><th class="py-2">Weight %</th><th class="py-2">Risk Contrib %</th><th class="py-2">Risk/Capital Ratio</th></tr></thead>
+              <tbody>
+                ${data.correlation_and_risk.risk_contributions.map(rc => `
+                  <tr class="border-b">
+                    <td class="py-2">${rc.ticker}</td>
+                    <td class="py-2">${rc.weight}%</td>
+                    <td class="py-2">${rc.pct_contribution}%</td>
+                    <td class="py-2 ${rc.risk_capital_ratio > 1.2 ? 'text-red-600 font-bold' : ''}">${rc.risk_capital_ratio}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            </div>
+         `;
+         tab2.appendChild(div);
+     }
+  }
+  
+  // Historical Stress (Tab 3)
+  if (data.historical_stress && data.historical_stress.replays) {
+     let tab3 = document.getElementById('tab-stress');
+     if (tab3 && !document.getElementById('hist-stress')) {
+         const div = document.createElement('div');
+         div.id = 'hist-stress';
+         div.className = 'mt-6 p-5 bg-white border border-appborder rounded-xl shadow-sm';
+         div.innerHTML = `<h3 class="text-lg font-semibold text-apptext mb-3">Historical Crisis Replays</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                ${data.historical_stress.replays.map(r => `
+                  <div class="p-4 border rounded bg-gray-50">
+                    <h4 class="font-bold">${r.scenario.replace(/_/g, ' ')}</h4>
+                    <p>Portfolio Drawdown: <span class="text-red-600">${r.portfolio_drawdown}%</span></p>
+                    <p>SPY Drawdown: ${r.spy_drawdown}%</p>
+                    <p>Recovery: ${r.recovery_days} days</p>
+                  </div>
+                `).join('')}
+            </div>
+         `;
+         tab3.appendChild(div);
+     }
+  }
+}
+
+// Hook into analyzePortfolio response
+const oldRender = renderAnalysis;
+renderAnalysis = function(data) {
+  oldRender(data);
+  updateInstitutionalUI(data);
+};
+
+</script>
 </body>
 </html>
 """

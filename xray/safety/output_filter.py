@@ -23,7 +23,7 @@ class OutputSafetyFilter:
     """
 
     PROHIBITED_TRADING_PATTERNS: List[Tuple[str, str]] = [
-        (r"\byou\s+(?:should|must|need\s+to)\s+(?:buy|sell|short|liquidate)\b", "Direct buy/sell instruction"),
+        (r"\b(?:you\s+(?:should|must|need\s+to)\s+(?:\w+\s+)?(?:buy|sell|short|liquidate)|recommend\s+(?:buying|selling)|(?:strong\s+buy|strong\s+sell|buy\s+immediately|sell\s+immediately|sell\s+all))\b", "Direct buy/sell instruction"),
         (r"\b(?:recommend|advise)\s+(?:buying|selling|shorting|liquidating)\b", "Advisory buy/sell recommendation"),
         (r"\b(?:strong\s+buy|strong\s+sell|buy\s+immediately|sell\s+immediately|dump\s+all)\b", "Urgent trading signal"),
         (r"\b(?:execute|place)\s+(?:a\s+)?(?:buy|sell|market|limit)\s+order\b", "Order execution instruction"),
@@ -31,7 +31,7 @@ class OutputSafetyFilter:
 
     PROHIBITED_PREDICTION_PATTERNS: List[Tuple[str, str]] = [
         (r"\bprice\s+target\s+of\b", "Stock price target prediction"),
-        (r"\bwill\s+(?:rally|surge|crash|climb|drop|reach|hit)\s+to\s+[\$£€]?\d+", "Future price level prediction"),
+        (r"\bwill\s+(?:rally|surge|crash|climb|drop|reach|hit)\s+(?:to\s+)?[\$£€]?\d+", "Future price level prediction"),
         (r"\b(?:guaranteed|risk[-\s]free)\s+return\b", "Guaranteed return claim"),
         (r"\bpredicted\s+to\s+(?:rise|fall|outperform|double|triple)\b", "Forward return prediction"),
     ]
