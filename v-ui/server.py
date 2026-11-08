@@ -264,6 +264,8 @@ class PortfolioXRayHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         if content_length is not None:
             self.send_header("Content-Length", str(content_length))
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+        self.send_header("Pragma", "no-cache")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, HEAD")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
@@ -813,15 +815,15 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       </div>
 
       <!-- Advanced View Toggle Banner (If enabled in settings or quick toggle) -->
-      <div id="advancedMetricsOverviewBanner" class="hidden bg-slate-100 rounded-2xl p-5 border border-slate-200 space-y-4">
+      <div id="advancedMetricsOverviewBanner" class="hidden bg-white rounded-2xl p-6 border border-appborder shadow-[0_1px_3px_rgba(15,23,42,0.04),0_8px_16px_-4px_rgba(15,23,42,0.03)] space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div class="flex items-center gap-2">
-            <span class="text-xs font-bold uppercase tracking-wider bg-slate-800 text-white px-2.5 py-1 rounded-lg">Advanced View Active</span>
+            <span class="text-xs font-bold uppercase tracking-wider bg-primary/10 text-primary border border-primary/20 px-2.5 py-1 rounded-lg">Advanced View Active</span>
             <span class="text-xs font-semibold text-apptext">Institutional Quantitative & Tail-Risk Telemetry (3Y Daily Returns)</span>
           </div>
           <div class="flex items-center gap-2 text-xs">
             <span class="font-semibold text-appmuted">Covariance Estimator:</span>
-            <select id="covEstimatorSelect" onchange="changeCovarianceMethod(this.value)" class="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-semibold text-apptext focus:outline-none focus:border-primary">
+            <select id="covEstimatorSelect" onchange="changeCovarianceMethod(this.value)" class="bg-slate-50 border border-appborder rounded-lg px-2.5 py-1 text-xs font-semibold text-apptext focus:outline-none focus:border-primary">
               <option value="sample">Sample Covariance</option>
               <option value="ledoit_wolf">Ledoit-Wolf Shrinkage</option>
               <option value="ewma">EWMA (λ = 0.94)</option>
@@ -829,38 +831,38 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           </div>
         </div>
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
-          <div class="bg-white p-3 rounded-xl border border-slate-200">
+          <div class="bg-slate-50 p-3 rounded-xl border border-appborder">
             <span class="text-appmuted block">Look-Through HHI & N_eff:</span>
             <span id="advHHIVal" class="text-sm font-bold text-apptext mt-0.5 block">--</span>
             <button onclick="openEvidenceModal('EV-CONC-LT-HHI')" class="text-[10px] font-mono text-primary hover:underline mt-1 inline-block">[EV-CONC-LT-HHI]</button>
           </div>
-          <div class="bg-white p-3 rounded-xl border border-slate-200">
+          <div class="bg-slate-50 p-3 rounded-xl border border-appborder">
             <span class="text-appmuted block">Annualized Volatility:</span>
             <span id="advVolVal" class="text-sm font-bold text-apptext mt-0.5 block">--</span>
             <button onclick="openEvidenceModal('EV-RISK-ANN-VOL')" class="text-[10px] font-mono text-primary hover:underline mt-1 inline-block">[EV-RISK-ANN-VOL]</button>
           </div>
-          <div class="bg-white p-3 rounded-xl border border-slate-200">
+          <div class="bg-slate-50 p-3 rounded-xl border border-appborder">
             <span class="text-appmuted block">95% 1-Month VaR (95% CI):</span>
             <span id="advVaRVal" class="text-sm font-bold text-apptext mt-0.5 block">--</span>
             <button onclick="openEvidenceModal('EV-TAIL-VAR-95-CI')" class="text-[10px] font-mono text-primary hover:underline mt-1 inline-block">[EV-TAIL-VAR-95-CI]</button>
           </div>
-          <div class="bg-white p-3 rounded-xl border border-slate-200">
+          <div class="bg-slate-50 p-3 rounded-xl border border-appborder">
             <span class="text-appmuted block">95% Expected Shortfall (ES):</span>
             <span id="advCVaRVal" class="text-sm font-bold text-apptext mt-0.5 block">--</span>
             <button onclick="openEvidenceModal('EV-TAIL-ES-95')" class="text-[10px] font-mono text-primary hover:underline mt-1 inline-block">[EV-TAIL-ES-95]</button>
           </div>
-          <div class="bg-white p-3 rounded-xl border border-slate-200">
+          <div class="bg-slate-50 p-3 rounded-xl border border-appborder">
             <span class="text-appmuted block">99% VaR & 99% ES (Tail):</span>
             <span id="advTail99Val" class="text-sm font-bold text-rose-600 mt-0.5 block">--</span>
             <button onclick="openEvidenceModal('EV-TAIL-ES-99')" class="text-[10px] font-mono text-primary hover:underline mt-1 inline-block">[EV-TAIL-ES-99]</button>
           </div>
-          <div class="bg-white p-3 rounded-xl border border-slate-200">
+          <div class="bg-slate-50 p-3 rounded-xl border border-appborder">
             <span class="text-appmuted block">3-Year Max Drawdown:</span>
             <span id="advMaxDDVal" class="text-sm font-bold text-rose-600 mt-0.5 block">--</span>
             <button onclick="openEvidenceModal('EV-RISK-MAX-DD')" class="text-[10px] font-mono text-primary hover:underline mt-1 inline-block">[EV-RISK-MAX-DD]</button>
           </div>
         </div>
-        <div id="advCovComparisonBar" class="text-[11px] text-appmuted bg-white px-3.5 py-2 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-2">
+        <div id="advCovComparisonBar" class="text-[11px] text-appmuted bg-slate-50 px-3.5 py-2 rounded-xl border border-appborder flex flex-wrap items-center justify-between gap-2">
           <!-- Populated by JS -->
         </div>
       </div>
@@ -3360,8 +3362,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       const qInd = document.getElementById('quickAdvIndicator');
       if (qBtn && qInd) {
         if (checked) {
-          qBtn.className = 'bg-slate-900 text-white border border-slate-900 text-xs sm:text-sm font-semibold px-3.5 py-2.5 rounded-xl transition flex items-center gap-1.5 shadow-xs';
-          qInd.className = 'w-2 h-2 rounded-full bg-tealaccent';
+          qBtn.className = 'bg-primary/10 text-primary border border-primary/30 text-xs sm:text-sm font-semibold px-3.5 py-2.5 rounded-xl transition flex items-center gap-1.5 shadow-xs';
+          qInd.className = 'w-2 h-2 rounded-full bg-primary';
         } else {
           qBtn.className = 'bg-white hover:bg-slate-50 border border-appborder text-appmuted text-xs sm:text-sm font-medium px-3.5 py-2.5 rounded-xl transition flex items-center gap-1.5';
           qInd.className = 'w-2 h-2 rounded-full bg-slate-300';
