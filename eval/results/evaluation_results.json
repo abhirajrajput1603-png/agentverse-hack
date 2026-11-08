@@ -1,0 +1,315 @@
+{
+  "benchmark_4_cases": [
+    {
+      "case_id": "CASE-01-DIVERSIFICATION-ILLUSION",
+      "name": "The Hidden Megacap Concentration Trap",
+      "status": "PASS",
+      "failures": [],
+      "top_stock": "NVDA",
+      "top_stock_weight": 0.34713499999999997,
+      "circuit_breaker": "BREACH",
+      "beta_vs_spy": 1.6003,
+      "es_95": -0.041435,
+      "dominant_theme": "AI_DATA_CENTER_AND_POWER_CAPEX",
+      "dominant_theme_weight": 0.596815,
+      "evidence_count": 49
+    },
+    {
+      "case_id": "CASE-02-AI-CAPEX-ENERGY-THEME",
+      "name": "The Unseen Thematic Correlation Trap",
+      "status": "PASS",
+      "failures": [],
+      "top_stock": "NVDA",
+      "top_stock_weight": 0.306125,
+      "circuit_breaker": "BREACH",
+      "beta_vs_spy": 1.6663,
+      "es_95": -0.044366,
+      "dominant_theme": "AI_DATA_CENTER_AND_POWER_CAPEX",
+      "dominant_theme_weight": 0.920375,
+      "evidence_count": 37
+    },
+    {
+      "case_id": "CASE-03-RATE-SHOCK-DURATION-TRAP",
+      "name": "The Speculative Tech + Long Bond Illusion",
+      "status": "PASS",
+      "failures": [],
+      "top_stock": "TLT",
+      "top_stock_weight": 0.5,
+      "circuit_breaker": "BREACH",
+      "beta_vs_spy": 1.0634,
+      "es_95": -0.027963,
+      "dominant_theme": "RATE_AND_DURATION_SENSITIVE",
+      "dominant_theme_weight": 0.773,
+      "evidence_count": 31
+    },
+    {
+      "case_id": "CASE-04-PASSIVE-DIVERSIFIED-BENCHMARK",
+      "name": "The Clean Diversified Baseline",
+      "status": "PASS",
+      "failures": [],
+      "top_stock": "MSFT",
+      "top_stock_weight": 0.051320000000000005,
+      "circuit_breaker": "PASS",
+      "beta_vs_spy": 0.8022,
+      "es_95": -0.01795,
+      "dominant_theme": "AI_DATA_CENTER_AND_POWER_CAPEX",
+      "dominant_theme_weight": 0.17326,
+      "evidence_count": 35
+    }
+  ],
+  "holdout_baseline_ablation": {
+    "Baseline_A_Static_Direct": {
+      "hidden_breach_precision": 1.0,
+      "hidden_breach_recall": 0.0,
+      "hidden_breach_f1": 0.0,
+      "multi_dimensional_risk_coverage": 0.0,
+      "numerical_hallucination_rate": 0.0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 5
+    },
+    "Baseline_B_Raw_No_Tools": {
+      "hidden_breach_precision": 1.0,
+      "hidden_breach_recall": 0.0,
+      "hidden_breach_f1": 0.0,
+      "multi_dimensional_risk_coverage": 0.0,
+      "numerical_hallucination_rate": 0.7,
+      "tp": 0,
+      "fp": 0,
+      "fn": 5
+    },
+    "Baseline_C_Fixed_Pipeline_v1": {
+      "hidden_breach_precision": 1.0,
+      "hidden_breach_recall": 1.0,
+      "hidden_breach_f1": 1.0,
+      "multi_dimensional_risk_coverage": 0.5,
+      "numerical_hallucination_rate": 0.0,
+      "tp": 5,
+      "fp": 0,
+      "fn": 0
+    },
+    "Portfolio_XRay_Agent_v2": {
+      "hidden_breach_precision": 1.0,
+      "hidden_breach_recall": 1.0,
+      "hidden_breach_f1": 1.0,
+      "multi_dimensional_risk_coverage": 1.0,
+      "numerical_hallucination_rate": 0.0,
+      "tp": 5,
+      "fp": 0,
+      "fn": 0
+    }
+  },
+  "out_of_sample_var_95_backtest": {
+    "expected_rate": 0.05,
+    "actual_out_of_sample_rate": 0.0581,
+    "absolute_deviation_from_expected": 0.0081,
+    "total_out_of_sample_portfolio_days": 2480,
+    "total_exceedances": 144,
+    "per_portfolio": [
+      {
+        "case_id": "HOLDOUT-01-MICROSOFT-STEALTH-BREACH",
+        "estimated_var_95": -0.016732,
+        "out_of_sample_days": 248,
+        "exceedances": 15,
+        "exceedance_rate": 0.0605
+      },
+      {
+        "case_id": "HOLDOUT-02-TESLA-ARKK-QQQ-OVERLAP",
+        "estimated_var_95": -0.033232,
+        "out_of_sample_days": 248,
+        "exceedances": 8,
+        "exceedance_rate": 0.0323
+      },
+      {
+        "case_id": "HOLDOUT-03-CLEAN-60-40-CORE",
+        "estimated_var_95": -0.008485,
+        "out_of_sample_days": 248,
+        "exceedances": 15,
+        "exceedance_rate": 0.0605
+      },
+      {
+        "case_id": "HOLDOUT-04-BERKSHIRE-SHARE-CLASS-MERGE",
+        "estimated_var_95": -0.01396,
+        "out_of_sample_days": 248,
+        "exceedances": 13,
+        "exceedance_rate": 0.0524
+      },
+      {
+        "case_id": "HOLDOUT-05-NVIDIA-SMH-STEALTH-BREACH",
+        "estimated_var_95": -0.022195,
+        "out_of_sample_days": 248,
+        "exceedances": 16,
+        "exceedance_rate": 0.0645
+      },
+      {
+        "case_id": "HOLDOUT-06-DEFENSIVE-STAPLES-HEALTHCARE",
+        "estimated_var_95": -0.00971,
+        "out_of_sample_days": 248,
+        "exceedances": 18,
+        "exceedance_rate": 0.0726
+      },
+      {
+        "case_id": "HOLDOUT-07-AMAZON-META-CLOUD-CLUSTER",
+        "estimated_var_95": -0.019613,
+        "out_of_sample_days": 248,
+        "exceedances": 11,
+        "exceedance_rate": 0.0444
+      },
+      {
+        "case_id": "HOLDOUT-08-PASSIVE-TOTAL-MARKET-SAFE",
+        "estimated_var_95": -0.010386,
+        "out_of_sample_days": 248,
+        "exceedances": 13,
+        "exceedance_rate": 0.0524
+      },
+      {
+        "case_id": "HOLDOUT-09-AMD-SEMI-AI-CLUSTER",
+        "estimated_var_95": -0.036196,
+        "out_of_sample_days": 248,
+        "exceedances": 25,
+        "exceedance_rate": 0.1008
+      },
+      {
+        "case_id": "HOLDOUT-10-PAYMENTS-FINANCIALS-CORE",
+        "estimated_var_95": -0.013469,
+        "out_of_sample_days": 248,
+        "exceedances": 10,
+        "exceedance_rate": 0.0403
+      }
+    ]
+  },
+  "holdout_crisis_shocks": {
+    "holdout_shock_replays": [
+      {
+        "case_id": "HOLDOUT-01-MICROSOFT-STEALTH-BREACH",
+        "aug_2024_return": -0.053051,
+        "aug_2024_max_dd": -0.10501,
+        "year_2022_return": -0.268469,
+        "year_2022_max_dd": -0.302043,
+        "coverage_weight": 1.0,
+        "missing_history": []
+      },
+      {
+        "case_id": "HOLDOUT-02-TESLA-ARKK-QQQ-OVERLAP",
+        "aug_2024_return": -0.10929,
+        "aug_2024_max_dd": -0.175558,
+        "year_2022_return": -0.536592,
+        "year_2022_max_dd": -0.572293,
+        "coverage_weight": 1.0,
+        "missing_history": []
+      },
+      {
+        "case_id": "HOLDOUT-03-CLEAN-60-40-CORE",
+        "aug_2024_return": -0.012194,
+        "aug_2024_max_dd": -0.046936,
+        "year_2022_return": -0.163649,
+        "year_2022_max_dd": -0.199966,
+        "coverage_weight": 1.0,
+        "missing_history": []
+      },
+      {
+        "case_id": "HOLDOUT-04-BERKSHIRE-SHARE-CLASS-MERGE",
+        "aug_2024_return": -0.028199,
+        "aug_2024_max_dd": -0.082179,
+        "year_2022_return": -0.183859,
+        "year_2022_max_dd": -0.246131,
+        "coverage_weight": 0.89,
+        "missing_history": [
+          "BRK.B"
+        ]
+      },
+      {
+        "case_id": "HOLDOUT-05-NVIDIA-SMH-STEALTH-BREACH",
+        "aug_2024_return": -0.069425,
+        "aug_2024_max_dd": -0.136838,
+        "year_2022_return": -0.310523,
+        "year_2022_max_dd": -0.368332,
+        "coverage_weight": 1.0,
+        "missing_history": []
+      },
+      {
+        "case_id": "HOLDOUT-06-DEFENSIVE-STAPLES-HEALTHCARE",
+        "aug_2024_return": 0.009887,
+        "aug_2024_max_dd": -0.032288,
+        "year_2022_return": 0.012898,
+        "year_2022_max_dd": -0.115774,
+        "coverage_weight": 1.0,
+        "missing_history": []
+      },
+      {
+        "case_id": "HOLDOUT-07-AMAZON-META-CLOUD-CLUSTER",
+        "aug_2024_return": -0.049535,
+        "aug_2024_max_dd": -0.106614,
+        "year_2022_return": -0.345881,
+        "year_2022_max_dd": -0.379453,
+        "coverage_weight": 1.0,
+        "missing_history": []
+      },
+      {
+        "case_id": "HOLDOUT-08-PASSIVE-TOTAL-MARKET-SAFE",
+        "aug_2024_return": -0.014323,
+        "aug_2024_max_dd": -0.055701,
+        "year_2022_return": -0.192271,
+        "year_2022_max_dd": -0.228232,
+        "coverage_weight": 1.0,
+        "missing_history": []
+      },
+      {
+        "case_id": "HOLDOUT-09-AMD-SEMI-AI-CLUSTER",
+        "aug_2024_return": -0.140955,
+        "aug_2024_max_dd": -0.233097,
+        "year_2022_return": -0.359096,
+        "year_2022_max_dd": -0.468776,
+        "coverage_weight": 0.85,
+        "missing_history": [
+          "VST"
+        ]
+      },
+      {
+        "case_id": "HOLDOUT-10-PAYMENTS-FINANCIALS-CORE",
+        "aug_2024_return": -0.024025,
+        "aug_2024_max_dd": -0.081581,
+        "year_2022_return": -0.178219,
+        "year_2022_max_dd": -0.278695,
+        "coverage_weight": 1.0,
+        "missing_history": []
+      }
+    ]
+  },
+  "agentverse_bench_summary": {
+    "label": "Participant adapter",
+    "dataset": {
+      "version": 1,
+      "source": "Portfolio X-Ray Holdout Evaluation Set (SEC N-PORT Ground Truth)",
+      "synthetic": true,
+      "seed": 42,
+      "pack": "custom",
+      "case_count": 10,
+      "input_record_count": 10,
+      "record_count_method": "first list among events/rows/prices_pence/items/lines; otherwise one per case",
+      "tasks": {
+        "portfolio_xray": 10
+      },
+      "families": {
+        "custom": 10
+      },
+      "input_sha256": "3ffd7a7fee8080b5a0562506e6822c191b315ccf3f040694a5507982b6352c65",
+      "answer_sha256": "15de41cbf2943fc6e8169d3d68de83f53ab6b469a7b554a917e8fe1abe13a7ab",
+      "limits": "Local visible synthetic practice, not hidden judging or proof of real-world financial performance. Inputs only go to adapters; answers stay with the evaluator."
+    },
+    "dataset_cases": 10,
+    "attempted": 10,
+    "passed": 10,
+    "failed": 0,
+    "errors": 0,
+    "strategy_runs_completed": 0,
+    "not_run": 0,
+    "cycle_record_metrics": {
+      "cycle_precision": null,
+      "cycle_recall": null,
+      "cycle_f1": null
+    },
+    "market_summary": null,
+    "limits": "Passing defined checks does not validate an entire product. Market completion is not profitability. Synthetic data is not a real-world benchmark. This runner is not an OS security sandbox."
+  }
+}

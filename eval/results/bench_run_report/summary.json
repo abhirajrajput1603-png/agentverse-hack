@@ -1,0 +1,36 @@
+{
+  "label": "Participant adapter",
+  "dataset": {
+    "version": 1,
+    "source": "Portfolio X-Ray Holdout Evaluation Set (SEC N-PORT Ground Truth)",
+    "synthetic": true,
+    "seed": 42,
+    "pack": "custom",
+    "case_count": 10,
+    "input_record_count": 10,
+    "record_count_method": "first list among events/rows/prices_pence/items/lines; otherwise one per case",
+    "tasks": {
+      "portfolio_xray": 10
+    },
+    "families": {
+      "custom": 10
+    },
+    "input_sha256": "3ffd7a7fee8080b5a0562506e6822c191b315ccf3f040694a5507982b6352c65",
+    "answer_sha256": "15de41cbf2943fc6e8169d3d68de83f53ab6b469a7b554a917e8fe1abe13a7ab",
+    "limits": "Local visible synthetic practice, not hidden judging or proof of real-world financial performance. Inputs only go to adapters; answers stay with the evaluator."
+  },
+  "dataset_cases": 10,
+  "attempted": 10,
+  "passed": 10,
+  "failed": 0,
+  "errors": 0,
+  "strategy_runs_completed": 0,
+  "not_run": 0,
+  "cycle_record_metrics": {
+    "cycle_precision": null,
+    "cycle_recall": null,
+    "cycle_f1": null
+  },
+  "market_summary": null,
+  "limits": "Passing defined checks does not validate an entire product. Market completion is not profitability. Synthetic data is not a real-world benchmark. This runner is not an OS security sandbox."
+}
