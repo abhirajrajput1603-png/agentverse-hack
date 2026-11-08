@@ -118,3 +118,52 @@ def test_case_04_cash_dampening_risk():
     c1 = next(p for p in portfolios if p["case_id"] == "CASE-01-DIVERSIFICATION-ILLUSION")
     c1_risk = engine.analyze(c1["holdings"])
     assert risk.annualized_volatility < c1_risk.annualized_volatility
+
+
+def test_ledoit_wolf_and_ewma_covariance_estimators():
+    """
+    Step 3.2: Verify sample, Ledoit-Wolf shrinkage, and EWMA covariance estimators:
+    - All three return symmetric positive semi-definite (PSD) matrices.
+    - Ledoit-Wolf shrinkage alpha is in [0.0, 1.0] and shrinks extreme off-diagonal covariances.
+    - EWMA responds more strongly to a recent volatility spike than equal-weighted sample covariance.
+    - Euler CCR check holds across all three covariance methods.
+    """
+    from xray.engine.risk import estimate_covariance_matrix
+    from xray.engine.correlation import CorrelationAndRiskContributionEngine
+
+    loader = DataLoader()
+    c1 = loader.load_synthetic_portfolios()[0]
+    engine = RiskEngine(loader)
+
+    comp = engine.compare_covariance_methods(c1["holdings"])
+    assert comp.sample_annualized_vol > 0.20
+    assert comp.ledoit_wolf_annualized_vol > 0.20
+    assert comp.ewma_annualized_vol > 0.10
+    assert 0.0 <= comp.ledoit_wolf_shrinkage_alpha <= 1.0
+    # Because Case 1 holdings are positively correlated, shrinking off-diagonals toward 0 reduces portfolio vol slightly
+    assert comp.ledoit_wolf_annualized_vol <= comp.sample_annualized_vol
+
+    # Check EWMA sensitivity to recent volatility regime spike
+    rng = np.random.default_rng(99)
+    calm = rng.normal(0.0, 0.005, size=(200, 2))
+    spike = rng.normal(0.0, 0.040, size=(30, 2))
+    df_regime = pd.DataFrame(np.vstack([calm, spike]), columns=["X", "Y"])
+
+    cov_s, _ = estimate_covariance_matrix(df_regime, method="sample")
+    cov_lw, meta_lw = estimate_covariance_matrix(df_regime, method="ledoit_wolf")
+    cov_ewma, _ = estimate_covariance_matrix(df_regime, method="ewma", ewma_lambda=0.94)
+
+    # PSD check (eigenvalues >= -1e-12)
+    for m in (cov_s, cov_lw, cov_ewma):
+        eigvals = np.linalg.eigvalsh(m)
+        assert np.all(eigvals >= -1e-12)
+
+    # EWMA variance must be significantly larger than equal-weighted sample variance after a recent spike
+    assert np.trace(cov_ewma) > np.trace(cov_s) * 1.5
+
+    # Euler CCR check holds for all 3 covariance methods
+    corr_eng = CorrelationAndRiskContributionEngine(loader)
+    for method in ("sample", "ledoit_wolf", "ewma"):
+        res_c = corr_eng.analyze(c1["holdings"], cov_method=method)
+        assert res_c.ccr_sum_check_passed is True
+

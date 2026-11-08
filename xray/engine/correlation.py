@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 
 from xray.data_loader import DataLoader
+from xray.engine.risk import estimate_covariance_matrix
 from xray.evidence import Evidence
 
 
@@ -92,6 +93,8 @@ class CorrelationAndRiskContributionEngine:
         weights: np.ndarray,
         cash_weight: float = 0.0,
         unpriced_holdings: Optional[List[str]] = None,
+        cov_method: str = "sample",
+        ewma_lambda: float = 0.94,
     ) -> CorrelationRiskResult:
         """
         Pure mathematical computation from return DataFrames and weights.
@@ -130,7 +133,10 @@ class CorrelationAndRiskContributionEngine:
         w_norm = w_arr / w_sum if w_sum > 0 else w_arr
 
         # 3. Annualised Covariance Matrix: Sigma_ann = Cov_daily * 252
-        cov_ann = rets_eval.cov().values * 252.0
+        cov_daily, _ = estimate_covariance_matrix(
+            rets_eval, method=cov_method, ewma_lambda=ewma_lambda
+        )
+        cov_ann = cov_daily * 252.0
         port_var = float(w_norm.T @ cov_ann @ w_norm)
         sigma_p = float(np.sqrt(max(port_var, 0.0)))
 
@@ -249,6 +255,8 @@ class CorrelationAndRiskContributionEngine:
         holdings: List[Dict[str, Any]],
         days_3y: int = 756,
         days_1y: int = 252,
+        cov_method: str = "sample",
+        ewma_lambda: float = 0.94,
     ) -> CorrelationRiskResult:
         """
         Analyzes 1Y/3Y correlations and Euler risk contributions for a portfolio.
@@ -300,4 +308,6 @@ class CorrelationAndRiskContributionEngine:
             weights=np.array(priced_weights, dtype=float),
             cash_weight=cash_weight,
             unpriced_holdings=unpriced_holdings,
+            cov_method=cov_method,
+            ewma_lambda=ewma_lambda,
         )
