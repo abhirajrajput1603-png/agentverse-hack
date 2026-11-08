@@ -426,20 +426,40 @@ def run_unified_analysis(
             "evidence_id": f"EV-STRESS-{scen_id}",
         })
 
-    # Format v-ui stress_tests while enriching with historical replay data
-    combined_stress_tests = [
-        {
-            "scenario_name": s.get("name", ""),
+    # Format v-ui stress_tests while enriching historical scenarios with real 15-year daily market replay data
+    combined_stress_tests = []
+    for s in vui_stress:
+        scen_name = s.get("name", "")
+        dd_dec = s.get("drawdown_pct", 0.0) / 100.0
+        dl_loss = abs(s.get("dollar_drawdown", 0.0))
+        src_type = "dynamic_factor"
+
+        if priced_cov >= 0.5:
+            if "2022 Fed Rate Shock" in scen_name and "YEAR_2022_FED_RATE_SHOCK" in stress_res.scenarios:
+                sc_hist = stress_res.scenarios["YEAR_2022_FED_RATE_SHOCK"]
+                eff_drop = min(sc_hist.portfolio_cumulative_return, sc_hist.portfolio_max_drawdown)
+                if eff_drop < 0:
+                    dd_dec = eff_drop
+                    dl_loss = round(abs(eff_drop) * total_val, 2)
+                    src_type = "historical_replay"
+            elif "2020 Liquidity" in scen_name and "MAR_2020_COVID_CRASH" in stress_res.scenarios:
+                sc_hist = stress_res.scenarios["MAR_2020_COVID_CRASH"]
+                eff_drop = min(sc_hist.portfolio_cumulative_return, sc_hist.portfolio_max_drawdown)
+                if eff_drop < 0:
+                    dd_dec = eff_drop
+                    dl_loss = round(abs(eff_drop) * total_val, 2)
+                    src_type = "historical_replay"
+
+        combined_stress_tests.append({
+            "scenario_name": scen_name,
             "scenario_id": s.get("scenario_id", ""),
             "category_badge": s.get("category_badge", "Factor Stress"),
-            "drawdown_pct": s.get("drawdown_pct", 0.0) / 100.0,
-            "dollar_loss": abs(s.get("dollar_drawdown", 0.0)),
+            "drawdown_pct": dd_dec,
+            "dollar_loss": dl_loss,
             "description": s.get("description", ""),
             "worst_hit": s.get("worst_hit_assets", []),
-            "source_type": "dynamic_factor",
-        }
-        for s in vui_stress
-    ]
+            "source_type": src_type,
+        })
 
     # Direct weights map
     direct_weights = {h["ticker"]: round(h["weight"], 6) for h in xray_holdings}

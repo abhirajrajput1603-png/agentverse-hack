@@ -71,11 +71,13 @@ def test_get_dashboard_html(live_server_url):
     assert "Portfolio X-Ray" in html
     assert "tab-overview" in html
     assert "tab-hidden-risks" in html
-    assert "subtab-correlation" in html
     assert "tab-what-if" in html
     assert "tab-simulate" in html
     assert "tab-chat" in html
-    assert "modal-evidence" in html
+    assert "modal-portfolio-entry" in html
+    assert "modal-risk-questionnaire" in html
+    assert "modal-settings" in html
+    assert "modal-terminology" in html
 
 
 def test_get_presets_includes_consumer_and_benchmark_cases(live_server_url):
