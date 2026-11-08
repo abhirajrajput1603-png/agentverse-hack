@@ -1,6 +1,11 @@
 """Unit tests for Portfolio X-Ray core quantitative risk engine."""
 
+import pytest
+import sys
 import unittest
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from portfolio_xray.engine import (
     Holding,
     Portfolio,
