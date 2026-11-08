@@ -81,7 +81,8 @@
       }
     ],
     "ground_truth_lookthrough": {
-      "ai_data_center_thematic_exposure": 0.812,
+      "ai_data_center_thematic_exposure": 0.920375,
+      "computed_ai_data_center_thematic_exposure": 0.920375,
       "expected_finding": "Thematic clustering: Utilities (VST) and Hardware (NVDA, SMH) and Cloud (MSFT) behave as a single concentrated factor.",
       "computed_top_issuer": "NVDA",
       "computed_top_issuer_weight": 0.306125,

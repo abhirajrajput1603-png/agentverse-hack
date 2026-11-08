@@ -25,12 +25,14 @@ class DataLoader:
         self.issuer_map_path = self.data_dir / "issuer_map.json"
         self.shock_data_path = self.data_dir / "historical_shock_data.json"
         self.sp500_metrics_path = self.data_dir / "sp500_benchmark_metrics.json"
+        self.themes_path = self.data_dir / "themes.json"
 
         # Lazy caches
         self._prices: Optional[pd.DataFrame] = None
         self._etf_constituents: Optional[Dict[str, Any]] = None
         self._portfolios: Optional[List[Dict[str, Any]]] = None
         self._issuer_map: Optional[Dict[str, str]] = None
+        self._themes: Optional[Dict[str, Any]] = None
 
     def load_prices(self) -> pd.DataFrame:
         """
@@ -115,6 +117,18 @@ class DataLoader:
         with open(self.portfolios_path, "r", encoding="utf-8") as f:
             self._portfolios = json.load(f)
         return self._portfolios
+
+    def load_themes(self) -> Dict[str, Any]:
+        """Loads the non-additive economic theme taxonomy from data/themes.json."""
+        if self._themes is not None:
+            return self._themes
+
+        if not self.themes_path.exists():
+            raise FileNotFoundError(f"Themes file not found at {self.themes_path}")
+
+        with open(self.themes_path, "r", encoding="utf-8") as f:
+            self._themes = json.load(f)
+        return self._themes
 
     def validate_holdings(
         self, holdings: List[Dict[str, Any]]

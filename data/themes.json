@@ -1,0 +1,275 @@
+{
+  "metadata": {
+    "description": "Economic theme taxonomy mapping underlying issuers to non-additive macro and supply-chain risk factors.",
+    "as_of_date": "2024-Q3",
+    "non_additive_note": "Theme exposures are non-additive across themes because a single issuer (e.g. NVDA, MSFT) can belong to multiple economic themes simultaneously."
+  },
+  "themes": {
+    "AI_DATA_CENTER_AND_POWER_CAPEX": {
+      "name": "AI Data Centre Compute & Power Infrastructure",
+      "description": "Issuers directly exposed to hyperscale AI data centre capital expenditure, GPU/ASIC accelerators, semiconductor fabrication tools, and baseload data-centre power generation.",
+      "tickers": {
+        "NVDA": {
+          "note": "Data Center segment accounts for >85% of revenue via Hopper/Blackwell AI GPU clusters.",
+          "source": "NVIDIA Corp FY2025 Form 10-K / Q3 10-Q"
+        },
+        "MSFT": {
+          "note": "Largest global AI cloud capex spender (Azure AI infrastructure and OpenAI partnership).",
+          "source": "Microsoft Corp FY2024 Form 10-K"
+        },
+        "VST": {
+          "note": "Independent power producer providing baseload nuclear and natural gas generation for hyperscale AI data centres.",
+          "source": "Vistra Corp 2024 Form 10-K"
+        },
+        "TSM": {
+          "note": "Primary global foundry fabricating CoWoS and advanced 3nm/5nm AI accelerator silicon.",
+          "source": "TSMC 2024 Form 20-F"
+        },
+        "AVGO": {
+          "note": "Custom AI XPUs and high-speed Ethernet switching silicon for hyperscale AI clusters.",
+          "source": "Broadcom Inc FY2024 Form 10-K"
+        },
+        "ASML": {
+          "note": "Sole supplier of EUV lithography systems required for leading-edge AI logic and DRAM nodes.",
+          "source": "ASML Holding 2024 Form 20-F"
+        },
+        "AMAT": {
+          "note": "Wafer fabrication equipment for gate-all-around (GAA) logic and high-bandwidth memory (HBM) packaging.",
+          "source": "Applied Materials FY2024 Form 10-K"
+        },
+        "MU": {
+          "note": "High-Bandwidth Memory (HBM3E) supplier integrated into AI training and inference GPUs.",
+          "source": "Micron Technology FY2024 Form 10-K"
+        },
+        "LRCX": {
+          "note": "Etch and deposition equipment critical for advanced 3D packaging and HBM through-silicon vias.",
+          "source": "Lam Research FY2024 Form 10-K"
+        },
+        "AMD": {
+          "note": "Instinct MI300X AI accelerators and EPYC server CPUs deployed in hyperscale data centres.",
+          "source": "Advanced Micro Devices 2024 Form 10-K"
+        },
+        "ARM": {
+          "note": "Neoverse CPU architecture licensing for custom hyperscaler data centre processors.",
+          "source": "Arm Holdings FY2024 Form 20-F"
+        },
+        "KLAC": {
+          "note": "Process control and wafer inspection systems for advanced node AI semiconductor manufacturing.",
+          "source": "KLA Corp FY2024 Form 10-K"
+        },
+        "AMZN": {
+          "note": "AWS hyperscale cloud capex and custom Trainium/Inferentia AI silicon infrastructure.",
+          "source": "Amazon.com Inc 2024 Form 10-K"
+        },
+        "GOOGL": {
+          "note": "Google Cloud AI infrastructure and custom TPU v5/v6 data centre clusters.",
+          "source": "Alphabet Inc 2024 Form 10-K"
+        },
+        "META": {
+          "note": "Multi-billion dollar AI training cluster capex for Llama models and recommendation engines.",
+          "source": "Meta Platforms Inc 2024 Form 10-K"
+        },
+        "ORCL": {
+          "note": "Oracle Cloud Infrastructure (OCI) GPU superclusters leased to AI model developers.",
+          "source": "Oracle Corp FY2024 Form 10-K"
+        }
+      }
+    },
+    "SEMICONDUCTOR_SUPPLY_CHAIN": {
+      "name": "Global Semiconductor Foundry, Logic & Equipment",
+      "description": "End-to-end silicon design, foundry manufacturing, lithography, memory, and analog chipmakers exposed to the global semiconductor cycle.",
+      "tickers": {
+        "NVDA": {
+          "note": "Fabless GPU and accelerated computing semiconductor designer.",
+          "source": "NVIDIA Corp FY2025 Form 10-K"
+        },
+        "TSM": {
+          "note": "Pure-play semiconductor foundry manufacturing >50% of global contract silicon.",
+          "source": "TSMC 2024 Form 20-F"
+        },
+        "AVGO": {
+          "note": "Networking, broadband, wireless RF, and custom ASIC semiconductor supplier.",
+          "source": "Broadcom Inc FY2024 Form 10-K"
+        },
+        "ASML": {
+          "note": "Photolithography systems manufacturer for global semiconductor fabs.",
+          "source": "ASML Holding 2024 Form 20-F"
+        },
+        "QCOM": {
+          "note": "Snapdragon mobile SoCs, 5G baseband modems, and RF front-end semiconductors.",
+          "source": "Qualcomm Inc FY2024 Form 10-K"
+        },
+        "AMAT": {
+          "note": "Semiconductor manufacturing equipment, services, and software.",
+          "source": "Applied Materials FY2024 Form 10-K"
+        },
+        "TXN": {
+          "note": "Analog and embedded processing semiconductors for industrial and automotive markets.",
+          "source": "Texas Instruments 2024 Form 10-K"
+        },
+        "MU": {
+          "note": "DRAM and NAND flash memory semiconductor manufacturer.",
+          "source": "Micron Technology FY2024 Form 10-K"
+        },
+        "LRCX": {
+          "note": "Wafer fabrication equipment for semiconductor etch, clean, and deposition.",
+          "source": "Lam Research FY2024 Form 10-K"
+        },
+        "ADI": {
+          "note": "High-performance analog, mixed-signal, and digital signal processing ICs.",
+          "source": "Analog Devices FY2024 Form 10-K"
+        },
+        "INTC": {
+          "note": "Integrated device manufacturer of x86 client/server CPUs and foundry services.",
+          "source": "Intel Corp 2024 Form 10-K"
+        },
+        "AMD": {
+          "note": "Fabless x86 microprocessor, GPU, and adaptive SoC semiconductor designer.",
+          "source": "Advanced Micro Devices 2024 Form 10-K"
+        },
+        "ARM": {
+          "note": "Semiconductor IP architecture licensor for mobile, automotive, and cloud chips.",
+          "source": "Arm Holdings FY2024 Form 20-F"
+        },
+        "KLAC": {
+          "note": "Metrology and defect inspection equipment for semiconductor wafer fabs.",
+          "source": "KLA Corp FY2024 Form 10-K"
+        }
+      }
+    },
+    "CLOUD_HYPERSCALERS_AND_SAAS": {
+      "name": "Hyperscale Cloud & Enterprise Software",
+      "description": "Cloud infrastructure platforms and enterprise software-as-a-service vendors driven by corporate IT spending.",
+      "tickers": {
+        "MSFT": {
+          "note": "Azure cloud infrastructure, Microsoft 365 commercial SaaS, and GitHub Copilot.",
+          "source": "Microsoft Corp FY2024 Form 10-K"
+        },
+        "AMZN": {
+          "note": "Amazon Web Services (AWS) cloud compute, storage, and database platform.",
+          "source": "Amazon.com Inc 2024 Form 10-K"
+        },
+        "GOOGL": {
+          "note": "Google Cloud Platform (GCP), Google Workspace, and core search advertising.",
+          "source": "Alphabet Inc 2024 Form 10-K"
+        },
+        "META": {
+          "note": "Digital advertising platform and open-weights AI software ecosystem.",
+          "source": "Meta Platforms Inc 2024 Form 10-K"
+        },
+        "CRM": {
+          "note": "Enterprise cloud CRM software and Data Cloud platform.",
+          "source": "Salesforce Inc FY2024 Form 10-K"
+        },
+        "ORCL": {
+          "note": "Enterprise ERP/database software and Oracle Cloud Infrastructure.",
+          "source": "Oracle Corp FY2024 Form 10-K"
+        },
+        "PLTR": {
+          "note": "Foundry, Gotham, and AIP enterprise/defence data analytics software.",
+          "source": "Palantir Technologies 2024 Form 10-K"
+        },
+        "PATH": {
+          "note": "Robotic process automation (RPA) enterprise workflow software.",
+          "source": "UiPath Inc FY2024 Form 10-K"
+        }
+      }
+    },
+    "RATE_AND_DURATION_SENSITIVE": {
+      "name": "Long-Duration Bonds & Rate-Sensitive Growth",
+      "description": "Long-maturity fixed income and long-duration speculative growth equities whose valuations compress sharply when real interest rates rise.",
+      "tickers": {
+        "TLT": {
+          "note": "20+ Year US Treasury Bond ETF with effective duration >16 years.",
+          "source": "iShares 20+ Year Treasury Bond ETF Prospectus"
+        },
+        "BND": {
+          "note": "US Aggregate investment-grade bond index with intermediate duration (~6 years).",
+          "source": "Vanguard Total Bond Market ETF Prospectus"
+        },
+        "TSLA": {
+          "note": "High-multiple electric vehicle and autonomy growth equity sensitive to financing and discount rates.",
+          "source": "Tesla Inc 2024 Form 10-K"
+        },
+        "COIN": {
+          "note": "Crypto asset exchange highly sensitive to macro liquidity and real rate cycles.",
+          "source": "Coinbase Global 2024 Form 10-K"
+        },
+        "ROKU": {
+          "note": "Long-duration streaming platform growth equity.",
+          "source": "Roku Inc 2024 Form 10-K"
+        },
+        "SQ": {
+          "note": "Fintech and digital payments growth equity (Block Inc).",
+          "source": "Block Inc 2024 Form 10-K"
+        },
+        "SHOP": {
+          "note": "High-multiple e-commerce software platform sensitive to discount rate shifts.",
+          "source": "Shopify Inc 2024 Form 40-F"
+        },
+        "CRSP": {
+          "note": "Pre-profitability gene-editing biotech with cashflows far in the future.",
+          "source": "CRISPR Therapeutics 2024 Form 10-K"
+        },
+        "TWLO": {
+          "note": "Cloud communications platform growth equity.",
+          "source": "Twilio Inc 2024 Form 10-K"
+        },
+        "U": {
+          "note": "Real-time 3D engine software growth equity.",
+          "source": "Unity Software 2024 Form 10-K"
+        },
+        "ZM": {
+          "note": "Enterprise video communications software.",
+          "source": "Zoom Video Communications FY2024 Form 10-K"
+        },
+        "PLTR": {
+          "note": "High-multiple AI/data analytics growth equity sensitive to real discount rates.",
+          "source": "Palantir Technologies 2024 Form 10-K"
+        },
+        "PATH": {
+          "note": "High-multiple enterprise automation growth equity.",
+          "source": "UiPath Inc FY2024 Form 10-K"
+        },
+        "RBLX": {
+          "note": "Long-duration interactive gaming and metaverse platform growth equity.",
+          "source": "Roblox Corp 2024 Form 10-K"
+        },
+        "HOOD": {
+          "note": "Retail trading and crypto fintech platform sensitive to liquidity cycles.",
+          "source": "Robinhood Markets 2024 Form 10-K"
+        }
+      }
+    },
+    "FINANCIALS_AND_PAYMENTS": {
+      "name": "Banking, Capital Markets & Payment Networks",
+      "description": "Systemically important banks, insurance/financial conglomerates, and global card payment rails.",
+      "tickers": {
+        "BRK-B": {
+          "note": "Diversified insurance, rail, energy, and financial conglomerate.",
+          "source": "Berkshire Hathaway 2024 Form 10-K"
+        },
+        "JPM": {
+          "note": "Global systemically important money-centre bank and investment bank.",
+          "source": "JPMorgan Chase & Co 2024 Form 10-K"
+        },
+        "BAC": {
+          "note": "US retail and commercial banking and wealth management institution.",
+          "source": "Bank of America Corp 2024 Form 10-K"
+        },
+        "V": {
+          "note": "Global electronic card payment transaction network.",
+          "source": "Visa Inc FY2024 Form 10-K"
+        },
+        "MA": {
+          "note": "Global payment processing and card network.",
+          "source": "Mastercard Inc 2024 Form 10-K"
+        },
+        "HOOD": {
+          "note": "Retail brokerage and crypto trading platform.",
+          "source": "Robinhood Markets 2024 Form 10-K"
+        }
+      }
+    }
+  }
+}
