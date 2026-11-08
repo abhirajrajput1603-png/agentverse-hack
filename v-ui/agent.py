@@ -501,11 +501,8 @@ Format in clean Markdown with clear section headings or bullet points.
         result = json.loads(response.read().decode("utf-8"))
         text = result["candidates"][0]["content"]["parts"][0]["text"]
         return {
-            "source": "deterministic-risk-analyst",
-            "response": "Your portfolio is empty.",
-            "cited_evidences": [],
-            "tool_calls": [],
-            "safety_check": {"passed": True, "blocked_reason": None}
+            "source": "gemini-2.5-flash",
+            "response": text,
         }
 
 

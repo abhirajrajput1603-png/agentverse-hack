@@ -3,7 +3,7 @@
 > **Autonomous portfolio risk management, look-through decomposition, 15-year historical stress testing, and safety-gated scenario intelligence designed for everyday investors.**
 > Built for the **UCL AgentVerse 2026 Finance Track** (*Jane Street · Citadel · Marshall Wace · BlackRock · Airwallex · Stripe*).
 
-## Unified Architecture
+---
 
 ## 💡 The Core Problem: The "Diversification Illusion"
 
@@ -14,7 +14,7 @@ An investor holding Nvidia (`NVDA`) alongside popular index and sector ETFs (`QQ
 - **Over 59% thematic concentration** in *AI Data Center & Power Capex* across seemingly distinct holdings (`[EV-THEME-AI_DATA_CENTER_AND_POWER_CAPEX]`).
 - **Disproportionate Euler Risk Contribution:** A holding with 20% of capital can generate over 33% of total portfolio volatility (`[EV-CORR-TOP-RISK-DRIVER]`).
 
-Start the integrated web application (listening on port 8080 by default):
+---
 
 ## 🚀 Quick Start
 
