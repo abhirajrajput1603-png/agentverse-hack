@@ -10,13 +10,22 @@ import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Any, Optional, Tuple
 
-from portfolio_xray.data import (
-    ETF_LOOKTHROUGH,
-    ASSET_METADATA,
-    get_asset_info,
-    STRESS_SCENARIOS,
-    COMPANY_SYNONYMS,
-)
+try:
+    from data import (
+        ETF_LOOKTHROUGH,
+        ASSET_METADATA,
+        get_asset_info,
+        STRESS_SCENARIOS,
+        COMPANY_SYNONYMS,
+    )
+except ImportError:
+    from portfolio_xray.data import (
+        ETF_LOOKTHROUGH,
+        ASSET_METADATA,
+        get_asset_info,
+        STRESS_SCENARIOS,
+        COMPANY_SYNONYMS,
+    )
 
 
 @dataclass

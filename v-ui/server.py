@@ -16,21 +16,36 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
-# Ensure project root is in sys.path
+# Ensure v-ui directory and project root are in sys.path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from portfolio_xray.data import SAMPLE_PORTFOLIOS, ASSET_METADATA, COMPANY_SYNONYMS
-from portfolio_xray.engine import (
-    Holding,
-    Portfolio,
-    compute_lookthrough_exposure,
-    compute_thematic_exposure,
-    compute_risk_metrics,
-    run_stress_tests,
-    simulate_what_if,
-    analyze_headline_event,
-)
-from portfolio_xray.agent import ask_risk_analyst
+try:
+    from data import SAMPLE_PORTFOLIOS, ASSET_METADATA, COMPANY_SYNONYMS
+    from engine import (
+        Holding,
+        Portfolio,
+        compute_lookthrough_exposure,
+        compute_thematic_exposure,
+        compute_risk_metrics,
+        run_stress_tests,
+        simulate_what_if,
+        analyze_headline_event,
+    )
+    from agent import ask_risk_analyst
+except ImportError:
+    from portfolio_xray.data import SAMPLE_PORTFOLIOS, ASSET_METADATA, COMPANY_SYNONYMS
+    from portfolio_xray.engine import (
+        Holding,
+        Portfolio,
+        compute_lookthrough_exposure,
+        compute_thematic_exposure,
+        compute_risk_metrics,
+        run_stress_tests,
+        simulate_what_if,
+        analyze_headline_event,
+    )
+    from portfolio_xray.agent import ask_risk_analyst
 
 STOP_WORDS = {
     "have", "and", "in", "of", "shares", "the", "i", "a", "an", "my", "at", "with",

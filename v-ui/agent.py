@@ -13,14 +13,24 @@ import urllib.error
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
-from portfolio_xray.engine import (
-    Portfolio,
-    compute_lookthrough_exposure,
-    compute_thematic_exposure,
-    compute_risk_metrics,
-    run_stress_tests,
-    simulate_what_if,
-)
+try:
+    from engine import (
+        Portfolio,
+        compute_lookthrough_exposure,
+        compute_thematic_exposure,
+        compute_risk_metrics,
+        run_stress_tests,
+        simulate_what_if,
+    )
+except ImportError:
+    from portfolio_xray.engine import (
+        Portfolio,
+        compute_lookthrough_exposure,
+        compute_thematic_exposure,
+        compute_risk_metrics,
+        run_stress_tests,
+        simulate_what_if,
+    )
 
 
 def get_api_key() -> Optional[str]:

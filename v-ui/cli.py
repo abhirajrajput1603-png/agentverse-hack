@@ -4,20 +4,34 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-# Ensure project root is in path
+# Ensure v-ui directory and project root are in path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from portfolio_xray.data import SAMPLE_PORTFOLIOS
-from portfolio_xray.engine import (
-    Portfolio,
-    Holding,
-    compute_lookthrough_exposure,
-    compute_thematic_exposure,
-    compute_risk_metrics,
-    run_stress_tests,
-    simulate_what_if,
-)
-from portfolio_xray.agent import ask_risk_analyst
+try:
+    from data import SAMPLE_PORTFOLIOS
+    from engine import (
+        Portfolio,
+        Holding,
+        compute_lookthrough_exposure,
+        compute_thematic_exposure,
+        compute_risk_metrics,
+        run_stress_tests,
+        simulate_what_if,
+    )
+    from agent import ask_risk_analyst
+except ImportError:
+    from portfolio_xray.data import SAMPLE_PORTFOLIOS
+    from portfolio_xray.engine import (
+        Portfolio,
+        Holding,
+        compute_lookthrough_exposure,
+        compute_thematic_exposure,
+        compute_risk_metrics,
+        run_stress_tests,
+        simulate_what_if,
+    )
+    from portfolio_xray.agent import ask_risk_analyst
 
 
 def main():
