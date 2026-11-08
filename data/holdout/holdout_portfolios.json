@@ -1,0 +1,542 @@
+[
+  {
+    "case_id": "HOLDOUT-01-MICROSOFT-STEALTH-BREACH",
+    "name": "Stealth Microsoft Breach Across Three Index Funds",
+    "persona": "Chloe, holding 14% MSFT directly plus QQQ, SPY, and VTI under an 18% single-stock limit.",
+    "stated_goal": "Moderate tech-tilted growth within an 18% single-stock cap",
+    "max_risk_tolerance_single_stock": 0.18,
+    "holdings": [
+      {
+        "ticker": "MSFT",
+        "name": "Microsoft Corp",
+        "allocation_gbp": 14000.0,
+        "weight": 0.14
+      },
+      {
+        "ticker": "QQQ",
+        "name": "Invesco QQQ Trust",
+        "allocation_gbp": 40000.0,
+        "weight": 0.4
+      },
+      {
+        "ticker": "SPY",
+        "name": "SPDR S&P 500 ETF",
+        "allocation_gbp": 30000.0,
+        "weight": 0.3
+      },
+      {
+        "ticker": "VTI",
+        "name": "Vanguard Total Stock Market ETF",
+        "allocation_gbp": 16000.0,
+        "weight": 0.16
+      }
+    ],
+    "ground_truth_lookthrough": {
+      "computed_top_issuer": "MSFT",
+      "computed_top_issuer_weight": 0.203728,
+      "computed_unresolved_other_constituents": 0.458942,
+      "computed_total_weight": 1.0,
+      "computed_direct_n_eff": 3.39,
+      "computed_lookthrough_n_eff": 18.22,
+      "computed_circuit_breaker_status": "BREACH",
+      "computed_surface_breaches": [],
+      "computed_lookthrough_breaches": [
+        "MSFT"
+      ],
+      "computed_hidden_breaches": [
+        "MSFT"
+      ],
+      "computed_dominant_theme": "AI_DATA_CENTER_AND_POWER_CAPEX",
+      "computed_dominant_theme_weight": 0.406846,
+      "computed_annualized_volatility": 0.176698,
+      "computed_var_95": -0.017323,
+      "computed_max_drawdown": -0.205462,
+      "computed_unpriced_holdings": []
+    }
+  },
+  {
+    "case_id": "HOLDOUT-02-TESLA-ARKK-QQQ-OVERLAP",
+    "name": "Hidden Tesla Concentration via ARKK and QQQ",
+    "persona": "Lucas, holding 13% TSLA directly alongside 45% ARKK and 42% QQQ with an 18% single-stock limit.",
+    "stated_goal": "High-growth innovation within an 18% single-issuer limit",
+    "max_risk_tolerance_single_stock": 0.18,
+    "holdings": [
+      {
+        "ticker": "TSLA",
+        "name": "Tesla Inc",
+        "allocation_gbp": 13000.0,
+        "weight": 0.13
+      },
+      {
+        "ticker": "ARKK",
+        "name": "ARK Innovation ETF",
+        "allocation_gbp": 45000.0,
+        "weight": 0.45
+      },
+      {
+        "ticker": "QQQ",
+        "name": "Invesco QQQ Trust",
+        "allocation_gbp": 42000.0,
+        "weight": 0.42
+      }
+    ],
+    "ground_truth_lookthrough": {
+      "computed_top_issuer": "TSLA",
+      "computed_top_issuer_weight": 0.191362,
+      "computed_unresolved_other_constituents": 0.362268,
+      "computed_total_weight": 1.0,
+      "computed_direct_n_eff": 2.53,
+      "computed_lookthrough_n_eff": 20.48,
+      "computed_circuit_breaker_status": "BREACH",
+      "computed_surface_breaches": [],
+      "computed_lookthrough_breaches": [
+        "TSLA"
+      ],
+      "computed_hidden_breaches": [
+        "TSLA"
+      ],
+      "computed_dominant_theme": "RATE_AND_DURATION_SENSITIVE",
+      "computed_dominant_theme_weight": 0.386662,
+      "computed_annualized_volatility": 0.311225,
+      "computed_var_95": -0.03159,
+      "computed_max_drawdown": -0.328449,
+      "computed_unpriced_holdings": []
+    }
+  },
+  {
+    "case_id": "HOLDOUT-03-CLEAN-60-40-CORE",
+    "name": "Clean Institutional 60/40 SPY & BND",
+    "persona": "Arthur, balanced retirement investor holding 60% SPY, 30% BND, and 10% Cash.",
+    "stated_goal": "Balanced retirement income and growth",
+    "max_risk_tolerance_single_stock": 0.1,
+    "holdings": [
+      {
+        "ticker": "SPY",
+        "name": "SPDR S&P 500 ETF",
+        "allocation_gbp": 60000.0,
+        "weight": 0.6
+      },
+      {
+        "ticker": "BND",
+        "name": "Vanguard Total Bond Market ETF",
+        "allocation_gbp": 30000.0,
+        "weight": 0.3
+      },
+      {
+        "ticker": "CASH_GBP",
+        "name": "Sterling Cash",
+        "allocation_gbp": 10000.0,
+        "weight": 0.1
+      }
+    ],
+    "ground_truth_lookthrough": {
+      "computed_top_issuer": "BND",
+      "computed_top_issuer_weight": 0.3,
+      "computed_unresolved_other_constituents": 0.3603,
+      "computed_total_weight": 1.0,
+      "computed_direct_n_eff": 2.17,
+      "computed_lookthrough_n_eff": 10.34,
+      "computed_circuit_breaker_status": "BREACH",
+      "computed_surface_breaches": [],
+      "computed_lookthrough_breaches": [],
+      "computed_hidden_breaches": [],
+      "computed_dominant_theme": "RATE_AND_DURATION_SENSITIVE",
+      "computed_dominant_theme_weight": 0.30792,
+      "computed_annualized_volatility": 0.09648,
+      "computed_var_95": -0.008819,
+      "computed_max_drawdown": -0.117057,
+      "computed_unpriced_holdings": []
+    }
+  },
+  {
+    "case_id": "HOLDOUT-04-BERKSHIRE-SHARE-CLASS-MERGE",
+    "name": "Berkshire Dual Ticker Aggregation Trap",
+    "persona": "grace, value investor holding 11% BRK.B and 8% BRK-B alongside 50% SPY and 31% VTI.",
+    "stated_goal": "Value-oriented compounding with a 18% single-issuer cap",
+    "max_risk_tolerance_single_stock": 0.18,
+    "holdings": [
+      {
+        "ticker": "BRK.B",
+        "name": "Berkshire Hathaway B (Dot Ticker)",
+        "allocation_gbp": 11000.0,
+        "weight": 0.11
+      },
+      {
+        "ticker": "BRK-B",
+        "name": "Berkshire Hathaway B (Hyphen Ticker)",
+        "allocation_gbp": 8000.0,
+        "weight": 0.08
+      },
+      {
+        "ticker": "SPY",
+        "name": "SPDR S&P 500 ETF",
+        "allocation_gbp": 50000.0,
+        "weight": 0.5
+      },
+      {
+        "ticker": "VTI",
+        "name": "Vanguard Total Stock Market ETF",
+        "allocation_gbp": 31000.0,
+        "weight": 0.31
+      }
+    ],
+    "ground_truth_lookthrough": {
+      "computed_top_issuer": "BRK-B",
+      "computed_top_issuer_weight": 0.203462,
+      "computed_unresolved_other_constituents": 0.516537,
+      "computed_total_weight": 1.0,
+      "computed_direct_n_eff": 2.74,
+      "computed_lookthrough_n_eff": 19.27,
+      "computed_circuit_breaker_status": "BREACH",
+      "computed_surface_breaches": [],
+      "computed_lookthrough_breaches": [
+        "BRK-B"
+      ],
+      "computed_hidden_breaches": [
+        "BRK-B"
+      ],
+      "computed_dominant_theme": "FINANCIALS_AND_PAYMENTS",
+      "computed_dominant_theme_weight": 0.21937,
+      "computed_annualized_volatility": 0.146903,
+      "computed_var_95": -0.014043,
+      "computed_max_drawdown": -0.174929,
+      "computed_unpriced_holdings": [
+        "BRK.B"
+      ]
+    }
+  },
+  {
+    "case_id": "HOLDOUT-05-NVIDIA-SMH-STEALTH-BREACH",
+    "name": "Stealth Nvidia Breach Under 15% Policy Limit",
+    "persona": "Noah, holding only 9% NVDA directly but 35% SMH and 30% QQQ plus 26% BND.",
+    "stated_goal": "Growth and income with strict 15% single-stock ceiling",
+    "max_risk_tolerance_single_stock": 0.15,
+    "holdings": [
+      {
+        "ticker": "NVDA",
+        "name": "Nvidia Corp",
+        "allocation_gbp": 9000.0,
+        "weight": 0.09
+      },
+      {
+        "ticker": "SMH",
+        "name": "VanEck Semiconductor ETF",
+        "allocation_gbp": 35000.0,
+        "weight": 0.35
+      },
+      {
+        "ticker": "QQQ",
+        "name": "Invesco QQQ Trust",
+        "allocation_gbp": 30000.0,
+        "weight": 0.3
+      },
+      {
+        "ticker": "BND",
+        "name": "Vanguard Total Bond Market ETF",
+        "allocation_gbp": 26000.0,
+        "weight": 0.26
+      }
+    ],
+    "ground_truth_lookthrough": {
+      "computed_top_issuer": "BND",
+      "computed_top_issuer_weight": 0.26,
+      "computed_unresolved_other_constituents": 0.186375,
+      "computed_total_weight": 1.0,
+      "computed_direct_n_eff": 3.47,
+      "computed_lookthrough_n_eff": 8.78,
+      "computed_circuit_breaker_status": "BREACH",
+      "computed_surface_breaches": [],
+      "computed_lookthrough_breaches": [
+        "NVDA"
+      ],
+      "computed_hidden_breaches": [
+        "NVDA"
+      ],
+      "computed_dominant_theme": "AI_DATA_CENTER_AND_POWER_CAPEX",
+      "computed_dominant_theme_weight": 0.447295,
+      "computed_annualized_volatility": 0.228542,
+      "computed_var_95": -0.022595,
+      "computed_max_drawdown": -0.214662,
+      "computed_unpriced_holdings": []
+    }
+  },
+  {
+    "case_id": "HOLDOUT-06-DEFENSIVE-STAPLES-HEALTHCARE",
+    "name": "Defensive Staples, Healthcare & Cash Portfolio",
+    "persona": "Clara, conservative investor holding WMT, COST, LLY, JNJ, PG, and 30% Cash.",
+    "stated_goal": "Low-beta defensive equity with 20% single-stock cap",
+    "max_risk_tolerance_single_stock": 0.2,
+    "holdings": [
+      {
+        "ticker": "WMT",
+        "name": "Walmart Inc",
+        "allocation_gbp": 14000.0,
+        "weight": 0.14
+      },
+      {
+        "ticker": "COST",
+        "name": "Costco Wholesale",
+        "allocation_gbp": 14000.0,
+        "weight": 0.14
+      },
+      {
+        "ticker": "LLY",
+        "name": "Eli Lilly & Co",
+        "allocation_gbp": 14000.0,
+        "weight": 0.14
+      },
+      {
+        "ticker": "JNJ",
+        "name": "Johnson & Johnson",
+        "allocation_gbp": 14000.0,
+        "weight": 0.14
+      },
+      {
+        "ticker": "PG",
+        "name": "Procter & Gamble",
+        "allocation_gbp": 14000.0,
+        "weight": 0.14
+      },
+      {
+        "ticker": "CASH_GBP",
+        "name": "Sterling Cash",
+        "allocation_gbp": 30000.0,
+        "weight": 0.3
+      }
+    ],
+    "ground_truth_lookthrough": {
+      "computed_top_issuer": "WMT",
+      "computed_top_issuer_weight": 0.14,
+      "computed_unresolved_other_constituents": 0.0,
+      "computed_total_weight": 1.0,
+      "computed_direct_n_eff": 5.32,
+      "computed_lookthrough_n_eff": 10.2,
+      "computed_circuit_breaker_status": "PASS",
+      "computed_surface_breaches": [],
+      "computed_lookthrough_breaches": [],
+      "computed_hidden_breaches": [],
+      "computed_dominant_theme": "NONE",
+      "computed_dominant_theme_weight": 0.0,
+      "computed_annualized_volatility": 0.10775,
+      "computed_var_95": -0.010029,
+      "computed_max_drawdown": -0.100867,
+      "computed_unpriced_holdings": []
+    }
+  },
+  {
+    "case_id": "HOLDOUT-07-AMAZON-META-CLOUD-CLUSTER",
+    "name": "Stealth Amazon Breach & Cloud Hyperscaler Cluster",
+    "persona": "Ethan, cloud architect holding 13% AMZN, 10% META, 45% QQQ, and 32% SPY under a 16% single-stock cap.",
+    "stated_goal": "Cloud growth within a 16% single-stock limit",
+    "max_risk_tolerance_single_stock": 0.16,
+    "holdings": [
+      {
+        "ticker": "AMZN",
+        "name": "Amazon.com Inc",
+        "allocation_gbp": 13000.0,
+        "weight": 0.13
+      },
+      {
+        "ticker": "META",
+        "name": "Meta Platforms Inc",
+        "allocation_gbp": 10000.0,
+        "weight": 0.1
+      },
+      {
+        "ticker": "QQQ",
+        "name": "Invesco QQQ Trust",
+        "allocation_gbp": 45000.0,
+        "weight": 0.45
+      },
+      {
+        "ticker": "SPY",
+        "name": "SPDR S&P 500 ETF",
+        "allocation_gbp": 32000.0,
+        "weight": 0.32
+      }
+    ],
+    "ground_truth_lookthrough": {
+      "computed_top_issuer": "AMZN",
+      "computed_top_issuer_weight": 0.165344,
+      "computed_unresolved_other_constituents": 0.380215,
+      "computed_total_weight": 1.0,
+      "computed_direct_n_eff": 3.01,
+      "computed_lookthrough_n_eff": 17.18,
+      "computed_circuit_breaker_status": "BREACH",
+      "computed_surface_breaches": [],
+      "computed_lookthrough_breaches": [
+        "AMZN"
+      ],
+      "computed_hidden_breaches": [
+        "AMZN"
+      ],
+      "computed_dominant_theme": "AI_DATA_CENTER_AND_POWER_CAPEX",
+      "computed_dominant_theme_weight": 0.488955,
+      "computed_annualized_volatility": 0.19803,
+      "computed_var_95": -0.019292,
+      "computed_max_drawdown": -0.225439,
+      "computed_unpriced_holdings": []
+    }
+  },
+  {
+    "case_id": "HOLDOUT-08-PASSIVE-TOTAL-MARKET-SAFE",
+    "name": "Pure Total Market & Treasury Barbell Within Limits",
+    "persona": "Sophie, index investor holding 45% VTI, 25% SPY, 15% TLT, and 15% Cash.",
+    "stated_goal": "Long-term index growth with 10% single-company cap",
+    "max_risk_tolerance_single_stock": 0.1,
+    "holdings": [
+      {
+        "ticker": "VTI",
+        "name": "Vanguard Total Stock Market ETF",
+        "allocation_gbp": 45000.0,
+        "weight": 0.45
+      },
+      {
+        "ticker": "SPY",
+        "name": "SPDR S&P 500 ETF",
+        "allocation_gbp": 25000.0,
+        "weight": 0.25
+      },
+      {
+        "ticker": "TLT",
+        "name": "iShares 20+ Year Treasury Bond ETF",
+        "allocation_gbp": 15000.0,
+        "weight": 0.15
+      },
+      {
+        "ticker": "CASH_GBP",
+        "name": "Sterling Cash",
+        "allocation_gbp": 15000.0,
+        "weight": 0.15
+      }
+    ],
+    "ground_truth_lookthrough": {
+      "computed_top_issuer": "TLT",
+      "computed_top_issuer_weight": 0.15,
+      "computed_unresolved_other_constituents": 0.46409,
+      "computed_total_weight": 1.0,
+      "computed_direct_n_eff": 3.23,
+      "computed_lookthrough_n_eff": 33.6,
+      "computed_circuit_breaker_status": "BREACH",
+      "computed_surface_breaches": [],
+      "computed_lookthrough_breaches": [],
+      "computed_hidden_breaches": [],
+      "computed_dominant_theme": "RATE_AND_DURATION_SENSITIVE",
+      "computed_dominant_theme_weight": 0.158475,
+      "computed_annualized_volatility": 0.112776,
+      "computed_var_95": -0.010472,
+      "computed_max_drawdown": -0.14414,
+      "computed_unpriced_holdings": []
+    }
+  },
+  {
+    "case_id": "HOLDOUT-09-AMD-SEMI-AI-CLUSTER",
+    "name": "AI Semiconductor & Power Cluster with Unpriced VST",
+    "persona": "Daniel, investing across AMD, AVGO, VST, and SMH with a 20% single-stock cap.",
+    "stated_goal": "Next-gen AI hardware and power infrastructure",
+    "max_risk_tolerance_single_stock": 0.2,
+    "holdings": [
+      {
+        "ticker": "AMD",
+        "name": "Advanced Micro Devices",
+        "allocation_gbp": 15000.0,
+        "weight": 0.15
+      },
+      {
+        "ticker": "AVGO",
+        "name": "Broadcom Inc",
+        "allocation_gbp": 15000.0,
+        "weight": 0.15
+      },
+      {
+        "ticker": "VST",
+        "name": "Vistra Corp",
+        "allocation_gbp": 15000.0,
+        "weight": 0.15
+      },
+      {
+        "ticker": "SMH",
+        "name": "VanEck Semiconductor ETF",
+        "allocation_gbp": 55000.0,
+        "weight": 0.55
+      }
+    ],
+    "ground_truth_lookthrough": {
+      "computed_top_issuer": "AVGO",
+      "computed_top_issuer_weight": 0.193175,
+      "computed_unresolved_other_constituents": 0.095865,
+      "computed_total_weight": 1.0,
+      "computed_direct_n_eff": 2.7,
+      "computed_lookthrough_n_eff": 8.94,
+      "computed_circuit_breaker_status": "PASS",
+      "computed_surface_breaches": [],
+      "computed_lookthrough_breaches": [],
+      "computed_hidden_breaches": [],
+      "computed_dominant_theme": "AI_DATA_CENTER_AND_POWER_CAPEX",
+      "computed_dominant_theme_weight": 0.824825,
+      "computed_annualized_volatility": 0.404652,
+      "computed_var_95": -0.040535,
+      "computed_max_drawdown": -0.359599,
+      "computed_unpriced_holdings": [
+        "VST"
+      ]
+    }
+  },
+  {
+    "case_id": "HOLDOUT-10-PAYMENTS-FINANCIALS-CORE",
+    "name": "Global Payments, Financials & Index Core",
+    "persona": "Zoe, fintech analyst holding V, MA, JPM, BAC, and 50% VTI under a 15% single-stock limit.",
+    "stated_goal": "Financial sector tilt without breaching 15% single-stock cap",
+    "max_risk_tolerance_single_stock": 0.15,
+    "holdings": [
+      {
+        "ticker": "V",
+        "name": "Visa Inc",
+        "allocation_gbp": 13000.0,
+        "weight": 0.13
+      },
+      {
+        "ticker": "MA",
+        "name": "Mastercard Inc",
+        "allocation_gbp": 12000.0,
+        "weight": 0.12
+      },
+      {
+        "ticker": "JPM",
+        "name": "JPMorgan Chase & Co",
+        "allocation_gbp": 13000.0,
+        "weight": 0.13
+      },
+      {
+        "ticker": "BAC",
+        "name": "Bank of America Corp",
+        "allocation_gbp": 12000.0,
+        "weight": 0.12
+      },
+      {
+        "ticker": "VTI",
+        "name": "Vanguard Total Stock Market ETF",
+        "allocation_gbp": 50000.0,
+        "weight": 0.5
+      }
+    ],
+    "ground_truth_lookthrough": {
+      "computed_top_issuer": "JPM",
+      "computed_top_issuer_weight": 0.1359,
+      "computed_unresolved_other_constituents": 0.34885,
+      "computed_total_weight": 1.0,
+      "computed_direct_n_eff": 3.2,
+      "computed_lookthrough_n_eff": 14.84,
+      "computed_circuit_breaker_status": "PASS",
+      "computed_surface_breaches": [],
+      "computed_lookthrough_breaches": [],
+      "computed_hidden_breaches": [],
+      "computed_dominant_theme": "FINANCIALS_AND_PAYMENTS",
+      "computed_dominant_theme_weight": 0.5135,
+      "computed_annualized_volatility": 0.153044,
+      "computed_var_95": -0.013215,
+      "computed_max_drawdown": -0.192272,
+      "computed_unpriced_holdings": []
+    }
+  }
+]

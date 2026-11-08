@@ -118,6 +118,22 @@ class DataLoader:
             self._portfolios = json.load(f)
         return self._portfolios
 
+    def load_dev_expanded_portfolios(self) -> List[Dict[str, Any]]:
+        """Loads the 5 additional labelled dev portfolios from data/dev_expanded_portfolios.json."""
+        dev_path = self.data_dir / "dev_expanded_portfolios.json"
+        if not dev_path.exists():
+            raise FileNotFoundError(f"Dev expanded portfolios not found at {dev_path}")
+        with open(dev_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+
+    def load_holdout_portfolios(self) -> List[Dict[str, Any]]:
+        """Loads the 10 strictly held-out evaluation portfolios from data/holdout/holdout_portfolios.json."""
+        holdout_path = self.data_dir / "holdout" / "holdout_portfolios.json"
+        if not holdout_path.exists():
+            raise FileNotFoundError(f"Holdout portfolios not found at {holdout_path}")
+        with open(holdout_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+
     def load_themes(self) -> Dict[str, Any]:
         """Loads the non-additive economic theme taxonomy from data/themes.json."""
         if self._themes is not None:
